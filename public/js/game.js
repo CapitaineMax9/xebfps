@@ -1110,7 +1110,10 @@ function setupNet() {
     m.e.forEach((e, i) => {
       const end = new THREE.Vector3(e[0], e[1], e[2]);
       if (i < 3 || i % 3 === 0) S.effects.tracer(from, end, w.kind === 'sniper' ? 500 : 280);
-      if (e[3]) S.effects.blood(end, end.clone().sub(o).normalize(), false);
+      if (e[3]) {
+        // pas de sang collé à notre propre caméra quand c'est nous qui sommes touchés
+        if (!(S.me.alive && end.distanceTo(eyePos()) < 1.6)) S.effects.blood(end, end.clone().sub(o).normalize(), false);
+      }
       else {
         const d = end.clone().sub(o); const len = d.length(); d.normalize();
         const mh = raycastMap(S.map.boxes, o.x, o.y, o.z, d.x, d.y, d.z, len + 0.05);
