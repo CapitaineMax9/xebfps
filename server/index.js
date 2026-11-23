@@ -87,6 +87,15 @@ wss.on('connection', (ws) => {
   ws.on('pong', () => { c.missed = 0; });
 
   ws.on('message', (data) => {
+    try { onMessage(c, ws, data); } catch (e) { console.error('Message invalide :', e && e.message); }
+  });
+
+  ws.on('close', () => { leave(c); clients.delete(c); });
+  ws.on('error', () => { /* ignore */ });
+});
+
+function onMessage(c, ws, data) {
+  {
     // limitation simple du débit
     const t = Date.now();
     if (t - c.msgWindow > 1000) { c.msgWindow = t; c.msgCount = 0; }
@@ -107,7 +116,7 @@ wss.on('connection', (ws) => {
       case 'join': {
         leave(c);
         let r = rooms.get(m.room);
-        if (!r && m.mode) {
+        if (!r && Object.prototype.hasOwnProperty.call(MODES, m.mode)) {
           // partie rapide : la salle la plus remplie (non pleine) du mode
           const cands = [...rooms.values()].filter((x) => x.mode === m.mode && !x.isFull());
           cands.sort((a, b) => b.humans() - a.humans());
@@ -152,11 +161,8 @@ wss.on('connection', (ws) => {
       default:
         if (c.room && c.player) c.room.handle(c.player, m);
     }
-  });
-
-  ws.on('close', () => { leave(c); clients.delete(c); });
-  ws.on('error', () => { /* ignore */ });
-});
+  }
+}
 
 function send(ws, obj) {
   if (ws.readyState === 1) ws.send(JSON.stringify(obj));

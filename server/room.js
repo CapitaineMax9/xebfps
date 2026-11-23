@@ -17,16 +17,17 @@ function navFor(mapId) {
 }
 
 const now = () => performance.now();
+const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
 let nextPlayerId = 1;
 
 function sanitizeSkins(skins) {
   const out = {};
   if (!skins || typeof skins !== 'object') return out;
   for (const wid of Object.keys(skins)) {
-    if (!WEAPONS[wid]) continue;
+    if (!has(WEAPONS, wid)) continue;
     const s = skins[wid];
     if (!s || typeof s !== 'object') continue;
-    const def = SKINS[s.skin];
+    const def = has(SKINS, s.skin) ? SKINS[s.skin] : null;
     if (!def || def.weapon !== wid) continue;
     out[wid] = {
       skin: def.id,
@@ -85,14 +86,14 @@ export class Player {
 export class Room {
   constructor(id, opts) {
     this.id = id;
-    this.mode = MODES[opts.mode] ? opts.mode : 'ffa';
+    this.mode = has(MODES, opts.mode) ? opts.mode : 'ffa';
     this.cfg = MODES[this.mode];
     this.name = opts.name || this.cfg.name;
     this.maxPlayers = Math.max(2, Math.min(16, opts.maxPlayers || 12));
     this.botTarget = Math.max(0, Math.min(this.maxPlayers - 1, opts.bots ?? 5));
     this.difficulty = ['easy', 'normal', 'hard'].includes(opts.difficulty) ? opts.difficulty : 'normal';
     this.persistent = !!opts.persistent;
-    this.mapRotation = opts.map && MAPS[opts.map] ? [opts.map, ...this.cfg.maps.filter((m) => m !== opts.map)] : this.cfg.maps.slice();
+    this.mapRotation = has(MAPS, opts.map) && this.cfg.maps.includes(opts.map) ? [opts.map, ...this.cfg.maps.filter((m) => m !== opts.map)] : this.cfg.maps.slice();
     this.mapIndex = 0;
     this.mapId = this.mapRotation[0];
     this.players = new Map();
@@ -221,6 +222,7 @@ export class Room {
 
   setLoadout(p, lo, applyNow = true) {
     if (!lo) return;
+    if (typeof lo !== 'object') return;
     const prim = PRIMARIES.includes(lo.primary) ? lo.primary : p.loadout.primary;
     const sec = SECONDARIES.includes(lo.secondary) ? lo.secondary : p.loadout.secondary;
     p.loadout = { primary: prim, secondary: sec };
@@ -369,7 +371,7 @@ export class Room {
       }
     }
     this.snapAcc += dt;
-    if (this.snapAcc >= 1 / SNAPSHOT_RATE) { this.snapAcc = 0; this.sendSnapshot(t); }
+    if (this.snapAcc >= 1 / SNAPSHOT_RATE - 1e-4) { this.snapAcc = Math.min(this.snapAcc - 1 / SNAPSHOT_RATE, 1 / SNAPSHOT_RATE); this.sendSnapshot(t); }
     this.boardAcc += dt;
     if (this.boardAcc >= 1) { this.boardAcc = 0; this.sendBoard(); }
   }
@@ -467,8 +469,8 @@ export class Room {
   }
 
   canFire(p, wid, heavy = false) {
+    if (!has(WEAPONS, wid) || !p.weapons.includes(wid)) return false;
     const w = WEAPONS[wid];
-    if (!w || !p.weapons.includes(wid)) return false;
     const t = now();
     const delay = (heavy ? w.heavyDelay : w.fireDelay) * 1000;
     const last = p.lastShot[wid] || 0;
@@ -490,8 +492,9 @@ export class Room {
   onShot(p, m) {
     if (this.state !== 'playing' || !p.alive) return;
     const wid = m.w;
+    if (!has(WEAPONS, wid)) return;
     const w = WEAPONS[wid];
-    if (!w || w.kind === 'knife') return;
+    if (w.kind === 'knife') return;
     if (!this.canFire(p, wid)) return;
     const o = m.o;
     if (!Array.isArray(o) || o.length !== 3 || !o.every(Number.isFinite)) return;
