@@ -58,7 +58,16 @@ input:focus, select:focus { outline: 2px solid var(--acc); outline-offset: -1px;
 .name-panel { grid-column: 1 / -1; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
 .name-panel label { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .name-panel input { width: 220px; font-size: 16px; }
-.net-status { color: var(--muted); font-size: 13px; }
+.net-status { color: var(--muted); font-size: 13px; margin-left: auto; }
+.acc-box { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acc-badge { font-size: 13px; color: var(--muted); }
+.acc-badge.ok { color: var(--ok); }
+.acc-modal { width: min(440px, 94vw); }
+.acc-modal h2 { margin: 0 0 6px; font-family: var(--font2); }
+#acc-form { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+#acc-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.acc-error { color: var(--danger); font-size: 13px; min-height: 16px; }
+input:disabled { opacity: .6; }
 .net-status.ok { color: var(--ok); }
 .net-status.err { color: var(--danger); }
 #mode-cards { grid-column: 1 / -1; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 12px; }

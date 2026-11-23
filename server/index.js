@@ -8,6 +8,7 @@ import { Room } from './room.js';
 import { TICK_RATE } from '../shared/constants.js';
 import { MODES, MODE_ORDER } from '../shared/modes.js';
 import { MAPS } from '../shared/maps.js';
+import * as ACC from './accounts.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -81,20 +82,24 @@ function roomList() {
 // ── Connexions ────────────────────────────────────────────────────────────
 const clients = new Set();
 
-wss.on('connection', (ws) => {
-  const c = { ws, name: 'Joueur', skins: {}, loadout: null, room: null, player: null, missed: 0, msgCount: 0, msgWindow: Date.now() };
+wss.on('connection', (ws, req) => {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const c = { ws, ip, acc: null, token: null, room: null, player: null, missed: 0, msgCount: 0, msgWindow: Date.now() };
   clients.add(c);
   ws.on('pong', () => { c.missed = 0; });
 
   ws.on('message', (data) => {
-    try { onMessage(c, ws, data); } catch (e) { console.error('Message invalide :', e && e.message); }
+    try {
+      const p = onMessage(c, ws, data);
+      if (p && p.catch) p.catch((e) => console.error('Message invalide :', e && e.message));
+    } catch (e) { console.error('Message invalide :', e && e.message); }
   });
 
   ws.on('close', () => { leave(c); clients.delete(c); });
   ws.on('error', () => { /* ignore */ });
 });
 
-function onMessage(c, ws, data) {
+async function onMessage(c, ws, data) {
   {
     // limitation simple du débit
     const t = Date.now();
@@ -104,16 +109,23 @@ function onMessage(c, ws, data) {
     try { m = JSON.parse(data.toString()); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
     switch (m.t) {
-      case 'hello':
-        c.name = String(m.name || 'Joueur').replace(/[<>]/g, '').trim().slice(0, 16) || 'Joueur';
-        c.skins = m.skins || {};
-        c.loadout = m.loadout || null;
-        send(ws, { t: 'welcome', rooms: roomList(), maps: Object.keys(MAPS) });
+      case 'hello': {
+        if (c.acc) break;
+        const { acc, token, created } = await ACC.authenticate(m.token, m.name);
+        if (created && m.local) ACC.importLocal(acc, m.local);
+        c.acc = acc; c.token = token;
+        send(ws, { t: 'welcome', rooms: roomList(), maps: Object.keys(MAPS), token, profile: ACC.publicProfile(acc), storage: ACC.store.kind });
+        break;
+      }
+      case 'req':
+        if (!c.acc) break;
+        await handleRequest(c, ws, m);
         break;
       case 'list':
         send(ws, { t: 'rooms', rooms: roomList() });
         break;
       case 'join': {
+        if (!c.acc) break;
         leave(c);
         let r = rooms.get(m.room);
         if (!r && Object.prototype.hasOwnProperty.call(MODES, m.mode)) {
@@ -125,10 +137,11 @@ function onMessage(c, ws, data) {
         if (!r) { send(ws, { t: 'error', msg: 'Salle introuvable.' }); break; }
         if (r.isFull()) { send(ws, { t: 'error', msg: 'Salle pleine.' }); break; }
         c.room = r;
-        c.player = r.addHuman(ws, c.name, c.skins, c.loadout);
+        c.player = r.addHuman(ws, c.acc);
         break;
       }
       case 'create': {
+        if (!c.acc) break;
         leave(c);
         if (rooms.size > 60) { send(ws, { t: 'error', msg: 'Trop de salles ouvertes.' }); break; }
         const o = m.opts || {};
@@ -137,20 +150,20 @@ function onMessage(c, ws, data) {
           bots: Number(o.bots), maxPlayers: Number(o.max), difficulty: o.difficulty, persistent: false,
         });
         c.room = r;
-        c.player = r.addHuman(ws, c.name, c.skins, c.loadout);
+        c.player = r.addHuman(ws, c.acc);
         break;
       }
       case 'leave':
         leave(c);
         send(ws, { t: 'left' });
         break;
-      case 'skins':
-        c.skins = m.skins || {};
+      case 'loadout':
+        if (!c.acc) break;
+        ACC.setLoadout(c.acc, m.lo);
         if (c.room && c.player) c.room.handle(c.player, m);
         break;
-      case 'loadout':
-        c.loadout = m.lo || null;
-        if (c.room && c.player) c.room.handle(c.player, m);
+      case 'settings':
+        if (c.acc) ACC.setSettings(c.acc, m.settings);
         break;
       case 'pong':
         if (c.player && typeof m.s === 'number') c.player.ping = Math.max(0, Math.round(performance.now() - m.s));
@@ -162,6 +175,59 @@ function onMessage(c, ws, data) {
         if (c.room && c.player) c.room.handle(c.player, m);
     }
   }
+}
+
+// ── Requêtes de compte / d'économie (réponse avec le même rid) ────────────
+const authTries = new Map(); // ip -> { n, t }
+function authLimited(ip) {
+  const now = Date.now();
+  const e = authTries.get(ip) || { n: 0, t: now };
+  if (now - e.t > 60000) { e.n = 0; e.t = now; }
+  e.n++;
+  authTries.set(ip, e);
+  return e.n > 10;
+}
+
+async function handleRequest(c, ws, m) {
+  const reply = (o) => send(ws, { t: 'res', rid: m.rid, profile: ACC.publicProfile(c.acc), ...o });
+  const acc = c.acc;
+  switch (m.op) {
+    case 'register': {
+      if (authLimited(c.ip)) return reply({ error: 'Trop de tentatives, réessaie dans une minute.' });
+      const r = await ACC.register(acc, m.username, m.password);
+      if (r.error) return reply(r);
+      if (c.player) { c.player.name = acc.name; c.room.refreshPlayer(c.player); }
+      return reply({ ok: true });
+    }
+    case 'login': {
+      if (authLimited(c.ip)) return reply({ error: 'Trop de tentatives, réessaie dans une minute.' });
+      const r = await ACC.login(m.username, m.password);
+      if (r.error) return reply(r);
+      leave(c);
+      c.acc = r.acc; c.token = r.token;
+      return reply({ ok: true, token: r.token });
+    }
+    case 'logout': {
+      await ACC.logout(c.token);
+      leave(c);
+      const r = await ACC.authenticate(null, 'Joueur');
+      c.acc = r.acc; c.token = r.token;
+      return reply({ ok: true, token: r.token });
+    }
+    case 'password': return reply(await ACC.changePassword(acc, m.old, m.password));
+    case 'name': ACC.setGuestName(acc, m.name); return reply({ ok: true });
+    case 'openCase': return reply(ACC.openCase(acc, m.caseId));
+    case 'sell': { const r = ACC.sell(acc, m.uid); skinsChanged(c); return reply(r); }
+    case 'equip': { const r = ACC.equip(acc, m.uid); skinsChanged(c); return reply(r); }
+    case 'unequip': { const r = ACC.unequip(acc, m.weapon); skinsChanged(c); return reply(r); }
+    case 'tradeup': { const r = ACC.tradeUp(acc, m.uids); skinsChanged(c); return reply(r); }
+    case 'profile': return reply({ ok: true });
+    default: return reply({ error: 'Requête inconnue.' });
+  }
+}
+
+function skinsChanged(c) {
+  if (c.room && c.player) c.room.refreshPlayer(c.player);
 }
 
 function send(ws, obj) {
@@ -197,6 +263,19 @@ setInterval(() => {
   }
 }, 2000);
 
+await ACC.initAccounts();
 server.listen(PORT, () => {
   console.log(`XEB FPS en ligne sur http://localhost:${PORT}`);
 });
+
+// Arrêt propre : on sauvegarde les comptes avant de quitter
+let stopping = false;
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  console.log('Arrêt du serveur, sauvegarde des comptes…');
+  try { await ACC.store.close(); } catch (e) { console.error(e.message); }
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

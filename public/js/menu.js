@@ -4,6 +4,7 @@ import { MAPS, MAP_LIST } from '/shared/maps.js';
 import { WEAPONS, SKINNABLE } from '/shared/weapons.js';
 import { SKINS, CASES, RARITIES, RARITY_ORDER, KNIVES, wearOf, rollCase, itemValue, itemFullName, weaponLabel, tradeUpResult } from '/shared/skins.js';
 import * as P from './profile.js';
+import { request } from './net.js';
 import { thumbnail, Viewer } from './preview.js';
 import * as A from './audio.js';
 import { esc } from './hud.js';
@@ -75,11 +76,13 @@ export function initMenu(callbacks) {
   // pseudo
   const ni = $('name-input');
   ni.value = prof.name;
-  ni.onchange = () => {
+  ni.onchange = async () => {
     const v = ni.value.replace(/[<>]/g, '').trim().slice(0, 16);
-    if (v) { prof.name = v; P.save(); cb.onName && cb.onName(); }
-    ni.value = prof.name;
+    if (v && !P.profile().registered) await request('name', { name: v });
+    ni.value = P.profile().name;
   };
+  initAccountUI();
+  P.onChange(() => { renderCredits(); renderAccount(); });
   // formulaire de création
   $('cr-mode').innerHTML = MODE_ORDER.map((m) => `<option value="${m}">${esc(MODES[m].name)}</option>`).join('');
   const fillMaps = () => {
@@ -130,6 +133,86 @@ export function setStatus(s) {
 }
 
 export function renderCredits() { $('credits').textContent = P.profile().credits.toLocaleString('fr-FR'); }
+
+// Re-dessine tout après connexion / changement de compte
+export function renderAll() {
+  renderCredits();
+  renderAccount();
+  const active = document.querySelector('.tab.active');
+  if (active) showTab(active.dataset.tab);
+}
+
+// ── Compte ───────────────────────────────────────────────────────────────
+let accMode = 'register';
+function renderAccount() {
+  const p = P.profile();
+  const ni = $('name-input');
+  if (document.activeElement !== ni) ni.value = p.name;
+  ni.disabled = !!p.registered;
+  ni.title = p.registered ? 'Le pseudo d\'un compte enregistré ne peut pas être modifié' : '';
+  const box = $('acc-box');
+  if (p.registered) {
+    box.innerHTML = `<span class="acc-badge ok">● Compte : <b>${esc(p.name)}</b></span>
+      <button class="btn small" id="acc-pass">Mot de passe</button><button class="btn small danger" id="acc-logout">Se déconnecter</button>`;
+    $('acc-logout').onclick = async () => {
+      if (!confirm('Se déconnecter ? Tu repasseras en invité sur ce navigateur.')) return;
+      const r = await request('logout');
+      if (r.token) P.setToken(r.token);
+      P.setProfile(r.profile, { fromLogin: true });
+      cb.onSkins(); renderAll(); toast('Déconnecté.');
+    };
+    $('acc-pass').onclick = () => openAccount('password');
+  } else {
+    box.innerHTML = `<span class="acc-badge">Invité — ta progression est liée à ce navigateur</span>
+      <button class="btn small primary" id="acc-reg">Créer un compte</button><button class="btn small" id="acc-log">Se connecter</button>`;
+    $('acc-reg').onclick = () => openAccount('register');
+    $('acc-log').onclick = () => openAccount('login');
+  }
+}
+
+function initAccountUI() {
+  $('account-modal').addEventListener('click', (e) => { if (e.target.id === 'account-modal') closeAccount(); });
+  $('acc-close').onclick = closeAccount;
+  $('acc-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const user = $('acc-user').value.trim(), pass = $('acc-pass1').value, pass2 = $('acc-pass2').value;
+    const err = $('acc-error');
+    err.textContent = '';
+    if ((accMode === 'register' || accMode === 'password') && pass !== pass2) { err.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    $('acc-submit').disabled = true;
+    let r;
+    if (accMode === 'register') r = await request('register', { username: user, password: pass });
+    else if (accMode === 'login') r = await request('login', { username: user, password: pass });
+    else r = await request('password', { old: $('acc-old').value, password: pass });
+    $('acc-submit').disabled = false;
+    if (r.error) { err.textContent = r.error; return; }
+    if (r.token) P.setToken(r.token);
+    if (accMode === 'login') { P.setProfile(r.profile, { fromLogin: true }); cb.onSkins(); cb.onSettings(); }
+    closeAccount();
+    renderAll();
+    toast(accMode === 'register' ? 'Compte créé ! Ta progression est sauvegardée sur le serveur.' : accMode === 'login' ? `Bienvenue ${P.profile().name} !` : 'Mot de passe modifié.');
+  };
+}
+
+function openAccount(mode) {
+  accMode = mode;
+  $('account-modal').classList.remove('hidden');
+  $('acc-title').textContent = { register: 'Créer un compte', login: 'Se connecter', password: 'Changer le mot de passe' }[mode];
+  $('acc-hint').textContent = {
+    register: 'Ton inventaire, tes crédits et tes skins actuels sont conservés dans le nouveau compte. Tu pourras te connecter depuis n\'importe quel PC.',
+    login: 'Connecte-toi pour retrouver ta progression. (La progression de l\'invité actuel reste sur ce navigateur.)',
+    password: '',
+  }[mode];
+  $('acc-user-row').classList.toggle('hidden', mode === 'password');
+  $('acc-old-row').classList.toggle('hidden', mode !== 'password');
+  $('acc-pass2-row').classList.toggle('hidden', mode === 'login');
+  $('acc-user').value = mode === 'register' ? P.profile().name.replace(/[^\p{L}\p{N}_-]/gu, '') : '';
+  $('acc-pass1').value = ''; $('acc-pass2').value = ''; $('acc-old').value = '';
+  $('acc-error').textContent = '';
+  $('acc-submit').textContent = { register: 'Créer le compte', login: 'Connexion', password: 'Valider' }[mode];
+  setTimeout(() => (mode === 'password' ? $('acc-old') : $('acc-user')).focus(), 0);
+}
+function closeAccount() { $('account-modal').classList.add('hidden'); }
 
 // ── Jouer ────────────────────────────────────────────────────────────────
 const MODE_ART = {
@@ -220,12 +303,17 @@ function openItem(item, extraActions = null) {
   const add = (label, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = label; b.onclick = fn; act.appendChild(b); };
   if (extraActions) extraActions(add);
   else {
-    if (P.isEquipped(item.uid)) add('Déséquiper', '', () => { P.unequip(s.weapon); cb.onSkins(); closeModal(); renderInventory(); });
-    else add('Équiper', 'primary', () => { P.equip(item); cb.onSkins(); A.playUi(); toast('Équipé : ' + itemFullName(item)); closeModal(); renderInventory(); });
-    add(`Vendre (+${itemValue(item)} ◈)`, 'danger', () => {
+    if (P.isEquipped(item.uid)) add('Déséquiper', '', async () => { await request('unequip', { weapon: s.weapon }); cb.onSkins(); closeModal(); renderInventory(); });
+    else add('Équiper', 'primary', async () => {
+      const r = await request('equip', { uid: item.uid });
+      if (r.error) { toast(r.error); return; }
+      cb.onSkins(); A.playUi(); toast('Équipé : ' + itemFullName(item)); closeModal(); renderInventory();
+    });
+    add(`Vendre (+${itemValue(item)} ◈)`, 'danger', async () => {
       if (!confirm(`Vendre ${itemFullName(item)} pour ${itemValue(item)} crédits ?`)) return;
       const wasEq = P.isEquipped(item.uid);
-      P.removeItem(item.uid); P.addCredits(itemValue(item)); renderCredits();
+      const r = await request('sell', { uid: item.uid });
+      if (r.error) { toast(r.error); return; }
       if (wasEq) cb.onSkins();
       closeModal(); renderInventory();
     });
@@ -276,17 +364,16 @@ function showCase(c) {
 }
 
 let opening = false;
-function openCase(c) {
+async function openCase(c) {
   if (opening) return;
   const prof = P.profile();
   if (prof.credits < c.price) { toast(`Pas assez de crédits (il te faut ${c.price} ◈). Fais des kills en ligne pour en gagner !`); return; }
   opening = true;
   A.initAudio();
-  P.addCredits(-c.price);
-  renderCredits();
-  const result = rollCase(c);
-  prof.stats.cases++;
-  P.addItem(result);
+  // le tirage est fait par le serveur
+  const res = await request('openCase', { caseId: c.id });
+  if (res.error) { opening = false; toast(res.error); return; }
+  const result = res.item;
   // bande de la roulette
   const N = 52, WIN = 45;
   const strip = $('roulette-strip');
@@ -344,9 +431,9 @@ function openCase(c) {
       <h3 style="color:${s.rarity === 'gold' ? '#e4ae39' : '#fff'}">${esc(itemFullName(result))}</h3><div class="hint">${esc(wearOf(result.float).name)} · float ${result.float.toFixed(6)} · motif n° ${result.seed}</div>
       <div class="btns"><button class="btn primary" id="op-equip">Équiper</button><button class="btn" id="op-again">Ouvrir une autre (${c.price} ◈)</button><button class="btn danger" id="op-sell">Vendre (+${itemValue(result)} ◈)</button><button class="btn" id="op-close">Fermer</button></div></div>`;
     opening = false;
-    $('op-equip').onclick = () => { P.equip(result); cb.onSkins(); toast('Équipé !'); closeOpening(); };
+    $('op-equip').onclick = async () => { await request('equip', { uid: result.uid }); cb.onSkins(); toast('Équipé !'); closeOpening(); };
     $('op-again').onclick = () => { openCase(c); };
-    $('op-sell').onclick = () => { P.removeItem(result.uid); P.addCredits(itemValue(result)); renderCredits(); closeOpening(); };
+    $('op-sell').onclick = async () => { await request('sell', { uid: result.uid }); closeOpening(); };
     $('op-close').onclick = closeOpening;
   };
 }
@@ -389,15 +476,15 @@ function renderTradeUp() {
   }
 }
 
-function doTradeUp() {
+async function doTradeUp() {
   const prof = P.profile();
   const items = tuSel.map((uid) => prof.inventory.find((i) => i.uid === uid)).filter(Boolean);
-  const res = tradeUpResult(items);
-  if (!res) { toast('Contrat invalide.'); return; }
+  if (!tradeUpResult(items.map((i) => ({ ...i })), () => 0.5)) { toast('Contrat invalide.'); return; }
   if (!confirm('Échanger ces 10 objets contre 1 objet de rareté supérieure ?')) return;
-  let unequip = false;
-  for (const it of items) { if (P.isEquipped(it.uid)) unequip = true; P.removeItem(it.uid); }
-  P.addItem(res);
+  const unequip = items.some((it) => P.isEquipped(it.uid));
+  const r = await request('tradeup', { uids: tuSel });
+  if (r.error) { toast(r.error); return; }
+  const res = r.item;
   if (unequip) cb.onSkins();
   tuSel = [];
   A.playReveal(SKINS[res.skin].rarity);
@@ -446,16 +533,17 @@ function renderSettings() {
     }
     f.appendChild(row);
   }
-  const stats = P.profile().stats;
-  f.insertAdjacentHTML('beforeend', `<h3 style="margin-top:20px">Statistiques</h3><p class="hint">Kills : ${stats.kills} · Morts : ${stats.deaths} · Headshots : ${stats.hs} · Caisses ouvertes : ${stats.cases} · Matchs terminés : ${stats.matches}</p>
-    <p class="hint">Ta progression (crédits, inventaire) est sauvegardée dans ce navigateur.</p>`);
+  const stats = P.profile().stats || {};
+  const n = (v) => v || 0;
+  f.insertAdjacentHTML('beforeend', `<h3 style="margin-top:20px">Statistiques</h3><p class="hint">Kills : ${n(stats.kills)} · Morts : ${n(stats.deaths)} · Headshots : ${n(stats.hs)} · Caisses ouvertes : ${n(stats.cases)} · Matchs terminés : ${n(stats.matches)} · Victoires : ${n(stats.wins)}</p>
+    <p class="hint">${P.profile().registered ? 'Ta progression est sauvegardée sur le serveur, dans ton compte.' : 'Tu joues en invité : ta progression est sauvegardée sur le serveur mais liée à ce navigateur. Crée un compte (onglet JOUER) pour la retrouver partout.'}</p>`);
   const reset = document.createElement('button');
-  reset.className = 'btn danger';
-  reset.textContent = 'Réinitialiser mon profil';
+  reset.className = 'btn';
+  reset.textContent = 'Réinitialiser les paramètres';
   reset.onclick = () => {
-    if (!confirm('Effacer tous tes crédits, skins et paramètres ?')) return;
-    localStorage.clear();
-    location.reload();
+    if (!confirm('Remettre tous les paramètres par défaut ?')) return;
+    Object.assign(P.profile().settings, P.DEFAULT_SETTINGS);
+    P.save(); cb.onSettings(); renderSettings();
   };
   f.appendChild(reset);
 }

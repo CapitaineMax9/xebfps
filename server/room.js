@@ -8,6 +8,7 @@ import { raycastMap, rayPlayer, HIT_HEAD, HIT_MULT } from '../shared/raycast.js'
 import { createBody, eyeHeight } from '../shared/physics.js';
 import { NavGrid } from './nav.js';
 import { BotBrain, BOT_NAMES } from './bot.js';
+import * as ACC from './accounts.js';
 
 export const WEAPON_IDS = Object.keys(WEAPONS);
 const navCache = {};
@@ -131,10 +132,11 @@ export class Room {
   isFull() { return this.humans() >= this.maxPlayers; }
 
   // ── Gestion des joueurs ───────────────────────────────────────────────────
-  addHuman(ws, name, skins, loadout) {
-    const p = new Player(String(name || 'Joueur').slice(0, 16), ws);
-    p.skins = sanitizeSkins(skins);
-    if (loadout) this.setLoadout(p, loadout, false);
+  addHuman(ws, acc) {
+    const p = new Player(acc.name, ws);
+    p.acc = acc;
+    p.skins = sanitizeSkins(ACC.equippedSkins(acc));
+    this.setLoadout(p, acc.loadout, false);
     if (this.state === 'idle') this.startMatch(false);
     this.assignTeam(p);
     this.players.set(p.id, p);
@@ -287,13 +289,17 @@ export class Room {
     });
     // Récompenses
     for (const p of this.players.values()) {
-      if (p.isBot) continue;
+      if (p.isBot || !p.acc) continue;
       let n = CREDITS.participation;
       const why = ['participation'];
-      const won = winTeam >= 0 ? p.team === winTeam : (winner && winner.id === p.id);
+      const won = winTeam >= 0 ? p.team === winTeam : !!(winner && winner.id === p.id);
       if (won) { n += CREDITS.win; why.push('victoire'); }
       if (top.includes(p.id) && !this.cfg.teams) { n += CREDITS.podium; why.push('podium'); }
-      p.send({ t: 'credits', n, why: 'Fin de match : ' + why.join(' + '), drop: true });
+      const total = ACC.reward(p.acc, n);
+      ACC.recordMatch(p.acc, won);
+      p.send({ t: 'credits', n, why: 'Fin de match : ' + why.join(' + '), total });
+      const item = ACC.drop(p.acc);
+      if (item) p.send({ t: 'drop', item });
     }
     for (const p of this.players.values()) { p.alive = false; }
   }
@@ -410,6 +416,12 @@ export class Room {
     this.broadcast({ t: 'board', rows: this.boardRows(), ts: this.teamScore, endsAt: this.matchEnd, serverTime: now() });
   }
 
+  // Skins ou nom modifiés depuis le menu (compte)
+  refreshPlayer(p) {
+    if (p.acc) { p.skins = sanitizeSkins(ACC.equippedSkins(p.acc)); p.name = p.acc.name; }
+    this.broadcast({ t: 'pinfo', p: p.info() });
+  }
+
   // ── Messages des clients ─────────────────────────────────────────────────
   handle(p, m) {
     switch (m.t) {
@@ -417,10 +429,6 @@ export class Room {
       case 'shot': this.onShot(p, m); break;
       case 'knife': this.onKnife(p, m); break;
       case 'loadout': this.setLoadout(p, m.lo); break;
-      case 'skins':
-        p.skins = sanitizeSkins(m.skins);
-        this.broadcast({ t: 'pinfo', p: p.info() });
-        break;
       case 'chat': {
         const msg = String(m.msg || '').slice(0, 140).trim();
         if (msg) this.broadcast({ t: 'chat', id: p.id, name: p.name, team: p.team, msg });
@@ -625,14 +633,18 @@ export class Room {
       t: 'kill', k: killer.id, v: victim.id, w: wid, hs: !!hs, ns: !!extra.noscope, bs: !!extra.backstab,
       a: assister ? assister.id : null, kh: killer.hp, streak: killer.streak,
     });
-    // crédits
-    if (!killer.isBot && !selfKill) {
+    // crédits, statistiques et compteur StatKill™
+    if (victim.acc) ACC.recordDeath(victim.acc);
+    if (killer.acc && !selfKill) {
       let n = CREDITS.kill;
       const why = ['kill'];
       if (hs) { n += CREDITS.headshot; why.push('headshot'); }
       if (wid === 'knife') { n += CREDITS.knife; why.push('couteau'); }
       if (extra.noscope) { n += CREDITS.noscope; why.push('no-scope'); }
-      killer.send({ t: 'credits', n, why: why.join(' + '), w: wid });
+      const total = ACC.reward(killer.acc, n);
+      const st = ACC.recordKill(killer.acc, wid, hs);
+      killer.send({ t: 'credits', n, why: why.join(' + '), w: wid, total, st });
+      if (st !== null && killer.skins[wid]) killer.skins[wid].kills = st;
     }
     // Gun Game
     if (this.cfg.ladder && !selfKill) {

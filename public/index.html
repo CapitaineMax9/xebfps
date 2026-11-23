@@ -83,6 +83,7 @@
       <div class="play-grid">
         <div class="panel name-panel">
           <label>Pseudo <input id="name-input" maxlength="16" autocomplete="off"></label>
+          <div id="acc-box" class="acc-box"></div>
           <div id="net-status" class="net-status">Connexion…</div>
         </div>
         <div id="mode-cards"></div>
@@ -159,6 +160,23 @@
       <canvas id="preview-canvas" width="640" height="360"></canvas>
       <div id="item-info"></div>
       <div id="item-actions"></div>
+    </div>
+  </div>
+
+  <!-- Compte -->
+  <div id="account-modal" class="modal hidden">
+    <div class="modal-box acc-modal">
+      <button class="modal-close" id="acc-close" type="button">✕</button>
+      <h2 id="acc-title">Créer un compte</h2>
+      <p class="hint" id="acc-hint"></p>
+      <form id="acc-form" autocomplete="on">
+        <label id="acc-user-row">Pseudo <input id="acc-user" maxlength="16" autocomplete="username" required></label>
+        <label id="acc-old-row" class="hidden">Ancien mot de passe <input id="acc-old" type="password" maxlength="64" autocomplete="current-password"></label>
+        <label>Mot de passe <input id="acc-pass1" type="password" maxlength="64" autocomplete="current-password" required></label>
+        <label id="acc-pass2-row">Confirmer le mot de passe <input id="acc-pass2" type="password" maxlength="64" autocomplete="new-password"></label>
+        <div id="acc-error" class="acc-error"></div>
+        <button class="btn primary" id="acc-submit" type="submit">Créer le compte</button>
+      </form>
     </div>
   </div>
 

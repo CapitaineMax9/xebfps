@@ -9,8 +9,16 @@ import { SKINS, CASES, rollCase, RARITIES, tradeUpResult, makeItem } from '../sh
 let fake = 0;
 Object.defineProperty(globalThis, 'performance', { value: { now: () => fake }, configurable: true, writable: true });
 
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xebfps-'));
+process.env.DATA_FILE = path.join(tmpDir, 'accounts.json');
+if (!process.env.TEST_PG) delete process.env.DATABASE_URL;
 const { NavGrid } = await import('../server/nav.js');
 const { Room } = await import('../server/room.js');
+const ACC = await import('../server/accounts.js');
+await ACC.initAccounts();
 
 let errors = 0;
 const fail = (m) => { errors++; console.error('  ✗', m); };
@@ -62,7 +70,9 @@ for (const mode of MODE_ORDER) {
   fake = 1000;
   const room = new Room('t_' + mode, { mode, bots: 9, maxPlayers: 12, difficulty: 'hard' });
   const log = [];
-  const human = room.addHuman(fakeWs(log), 'Testeur', {}, { primary: 'awp', secondary: 'deagle' });
+  const { acc } = await ACC.authenticate(null, 'Testeur');
+  acc.loadout = { primary: 'awp', secondary: 'deagle' };
+  const human = room.addHuman(fakeWs(log), acc);
   const dt = 1 / 30;
   let kills = 0, ended = null, maxGG = 0, steps = 0;
   const start = performance.now();
@@ -94,5 +104,41 @@ for (const mode of MODE_ORDER) {
   void start;
 }
 
+await accountTests();
+await ACC.store.close();
 console.log(errors ? `\n${errors} erreur(s)` : '\nTout est OK');
 process.exit(errors ? 1 : 0);
+
+// ── Comptes et économie ───────────────────────────────────────────────────
+async function accountTests() {
+  console.log('Comptes (' + ACC.store.kind + ')');
+  const a = (await ACC.authenticate(null, 'Invité')).acc;
+  const imported = ACC.importLocal(a, { credits: 999999, name: 'Ancien', inventory: [{ uid: 'x1', skin: 'awp_dragon', float: 5, seed: 3, st: true, kills: 7 }, { uid: 'bad', skin: '__proto__' }], equipped: { awp: 'x1' } });
+  if (!imported || a.credits !== 50000 || a.inventory.length !== 1 || !a.equipped.awp || a.inventory[0].float > 1) fail('import du profil local incorrect'); else ok('import local validé et plafonné');
+  if (ACC.importLocal(a, { credits: 1 })) fail('import possible deux fois');
+  let r = await ACC.register(a, 'ab', 'secret1'); if (!r.error) fail('pseudo trop court accepté');
+  r = await ACC.register(a, 'Sniper_FR', '123'); if (!r.error) fail('mot de passe trop court accepté');
+  r = await ACC.register(a, 'Sniper_FR', 'motdepasse'); if (!r.ok) fail('inscription : ' + r.error); else ok('inscription');
+  const b = (await ACC.authenticate(null, 'X')).acc;
+  r = await ACC.register(b, 'sniper_fr', 'autre123'); if (!r.error) fail('pseudo en double accepté'); else ok('pseudo unique (insensible à la casse)');
+  r = await ACC.login('SNIPER_FR', 'mauvais'); if (!r.error) fail('mauvais mot de passe accepté');
+  r = await ACC.login('sniper_fr', 'motdepasse'); if (r.acc !== a) fail('connexion échouée'); else ok('connexion');
+  const again = await ACC.authenticate(r.token); if (again.acc !== a || again.created) fail('reconnexion par jeton échouée'); else ok('reconnexion automatique par jeton');
+  await ACC.logout(r.token);
+  const after = await ACC.authenticate(r.token); if (after.acc === a) fail('jeton encore valide après déconnexion'); else ok('déconnexion');
+  // économie
+  a.credits = 300;
+  r = ACC.openCase(a, 'prelude'); if (!r.item || a.credits !== 50) fail('ouverture de caisse'); else ok('ouverture de caisse (crédits débités côté serveur)');
+  r = ACC.openCase(a, 'prelude'); if (!r.error) fail('caisse ouverte sans crédits');
+  r = ACC.openCase(a, '__proto__'); if (!r.error) fail('caisse inconnue acceptée');
+  const it = a.inventory[a.inventory.length - 1];
+  ACC.equip(a, it.uid);
+  const v = ACC.sell(a, it.uid).value;
+  if (a.credits !== 50 + v || Object.values(a.equipped).includes(it.uid)) fail('vente'); else ok('vente + déséquipement');
+  for (let i = 0; i < 10; i++) a.inventory.push((await import('../shared/skins.js')).makeItem('glock_sable'));
+  const uids = a.inventory.filter((i) => i.skin === 'glock_sable').slice(0, 10).map((i) => i.uid);
+  r = ACC.tradeUp(a, uids); if (!r.item) fail('contrat : ' + r.error); else ok('contrat d\'échange');
+  r = ACC.tradeUp(a, uids); if (!r.error) fail('contrat rejoué');
+  ACC.equip(a, a.inventory[0].uid);
+  const st = ACC.recordKill(a, 'awp', true); if (st !== 8) fail('StatKill : ' + st); else ok('compteur StatKill™');
+}

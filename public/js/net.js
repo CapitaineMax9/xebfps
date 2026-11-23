@@ -1,5 +1,7 @@
 // Connexion WebSocket au serveur + synchronisation d'horloge.
 const handlers = new Map();
+let onProfile = null;
+export function setProfileHandler(fn) { onProfile = fn; }
 let ws = null;
 let openCb = null;
 let retry = 0;
@@ -13,6 +15,19 @@ export const net = {
 };
 
 export function on(type, fn) { handlers.set(type, fn); }
+
+// Requête au serveur avec réponse (comptes, caisses, inventaire…)
+let rid = 0;
+const pending = new Map();
+export function request(op, payload = {}) {
+  return new Promise((resolve) => {
+    if (!ws || ws.readyState !== 1) { resolve({ error: 'Pas de connexion au serveur.' }); return; }
+    const id = ++rid;
+    const timer = setTimeout(() => { pending.delete(id); resolve({ error: 'Le serveur ne répond pas.' }); }, 10000);
+    pending.set(id, (m) => { clearTimeout(timer); resolve(m); });
+    send({ t: 'req', rid: id, op, ...payload });
+  });
+}
 
 export function send(obj) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
@@ -55,6 +70,7 @@ export function connect(onHello, onStatus) {
       return;
     }
     if (m.t === 'ping') { send({ t: 'pong', s: m.s }); return; }
+    if (m.t === 'res') { const cb = pending.get(m.rid); if (cb) { pending.delete(m.rid); if (m.profile && onProfile) onProfile(m.profile); cb(m); } return; }
     const h = handlers.get(m.t);
     if (h) h(m);
   };

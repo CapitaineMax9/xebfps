@@ -7,7 +7,7 @@ import { MODES, GUNGAME_LADDER } from '/shared/modes.js';
 import { PLAYER, INTERP_DELAY, CLIENT_SEND_RATE, TEAM_NAMES, TEAM_COLORS } from '/shared/constants.js';
 import { createBody, stepBody, wishFromKeys, eyeHeight } from '/shared/physics.js';
 import { raycastMap, rayPlayer, HIT_HEAD } from '/shared/raycast.js';
-import { SKINS, CASES, makeItem, itemFullName } from '/shared/skins.js';
+import { SKINS, itemFullName } from '/shared/skins.js';
 import { buildWorld, disposeWorld } from './world.js';
 import { buildWeapon, buildArms, buildAvatar } from './models.js';
 import { Effects } from './effects.js';
@@ -51,7 +51,6 @@ const S = {
   deathPos: null,
   tabHeld: false,
   endData: null,
-  lastDrop: null,
   onExit: null,
 };
 
@@ -1000,7 +999,7 @@ function buildLoadoutUI() {
       const it = P.equippedItem(id);
       b.innerHTML = `${esc(w.name)}<small>${it ? esc(SKINS[it.skin].name) : 'Par défaut'} · ${w.damage} dég.</small>`;
       b.onclick = () => {
-        lo[key] = id; P.save();
+        lo[key] = id;
         send({ t: 'loadout', lo });
         buildLoadoutUI();
         A.playUi();
@@ -1020,13 +1019,6 @@ function pushSnap(p, e, st) {
   if (p.snaps.length > 30) p.snaps.shift();
 }
 
-function randomDrop() {
-  if (Math.random() > 0.4) return null;
-  const c = CASES[Math.floor(Math.random() * CASES.length)];
-  const rar = Math.random() < 0.85 ? 'milspec' : 'restricted';
-  const pool = c.items.filter((id) => SKINS[id].rarity === rar);
-  return makeItem(pool[Math.floor(Math.random() * pool.length)]);
-}
 
 function setupNet() {
   on('s', (m) => {
@@ -1155,18 +1147,10 @@ function setupNet() {
     if (victim) { victim.deadT = 0; victim.deathY = victim.y; victim.alive = false; victim.diedAt = serverNow(); if (victim.avatar) victim.avatar.position.set(victim.x, victim.y, victim.z); }
     if (m.k === me.id && m.v !== me.id) {
       A.playKill(m.hs);
-      const st = P.profile().stats; st.kills++; if (m.hs) st.hs++;
       let txt = m.hs ? 'HEADSHOT' : '';
       if (m.ns) txt = 'NO-SCOPE !' + (m.hs ? ' HEADSHOT' : '');
       if (m.bs) txt = 'DANS LE DOS !';
       if (txt) hud.center('', txt, 1200);
-      // StatKill™
-      const item = P.equippedItem(m.w);
-      if (item && item.st) {
-        item.kills = (item.kills || 0) + 1;
-        if (S.vm && S.vm.wid === m.w && S.vm.model.userData.stDisplay) S.vm.model.userData.stDisplay.userData.update(item.kills);
-      }
-      P.save();
     }
     if (m.v === me.id) {
       me.alive = false;
@@ -1174,7 +1158,6 @@ function setupNet() {
       me.respawnAt = performance.now() + S.cfg.respawn * 1000;
       S.killer = m.k;
       S.deathPos = new THREE.Vector3(me.body.x, me.body.y + 1.2, me.body.z);
-      const st = P.profile().stats; st.deaths++; P.save();
       const kp = S.players.get(m.k);
       const sk = kp && kp.skins[m.w];
       hud.death(true, {
@@ -1185,18 +1168,23 @@ function setupNet() {
   });
   on('credits', (m) => {
     if (!S.active) return;
-    P.addCredits(m.n);
+    P.setCredits(m.total);
     hud.creditPop(m.n, m.why);
-    if (m.drop) {
-      const it = randomDrop();
-      S.lastDrop = it;
-      if (it) {
-        P.addItem(it);
-        const el = document.querySelector('#end-screen .drop');
-        if (el) el.innerHTML = `🎁 Objet obtenu : <b style="color:${dropColor(it)}">${esc(itemFullName(it))}</b>`;
-      }
-      P.profile().stats.matches++; P.save();
+    // compteur StatKill™ (valeur officielle venant du serveur)
+    if (m.st !== null && m.st !== undefined) {
+      const item = P.equippedItem(m.w);
+      if (item) item.kills = m.st;
+      if (S.vm && S.vm.wid === m.w && S.vm.model.userData.stDisplay) S.vm.model.userData.stDisplay.userData.update(m.st);
     }
+  });
+  on('drop', (m) => {
+    if (!S.active || !m.item) return;
+    P.addLocalItem(m.item);
+    const show = () => {
+      const el = document.querySelector('#end-screen .drop');
+      if (el) el.innerHTML = `🎁 Objet obtenu : <b style="color:${dropColor(m.item)}">${esc(itemFullName(m.item))}</b>`;
+    };
+    show(); setTimeout(show, 300);
   });
   on('board', (m) => {
     S.board = m.rows;
