@@ -74,22 +74,29 @@ export function lineOfSight(boxes, ax, ay, az, bx, by, bz) {
 
 export const HIT_HEAD = 0, HIT_BODY = 1, HIT_LEGS = 2;
 
-// Hitbox d'un joueur (pieds en x,y,z)
-export function playerHitboxes(x, y, z, crouch, inflate = 0, out = []) {
-  const h = crouch ? PLAYER.crouchHeight : PLAYER.height;
-  const legTop = h * 0.47;
-  const headBottom = h - 0.3;
+// Hitbox d'un joueur (pieds en x,y,z ; yaw = orientation).
+// Calées sur le modèle 3D : accroupi, le buste et la tête sont penchés vers l'avant.
+const box = (g, cx, cy0, cy1, cz, hx, hz, inf) => ({ g, x0: cx - hx - inf, x1: cx + hx + inf, y0: cy0 - inf, y1: cy1 + inf, z0: cz - hz - inf, z1: cz + hz + inf });
+export function playerHitboxes(x, y, z, crouch, inflate = 0, out = [], yaw = 0) {
   out.length = 3;
-  out[0] = { g: HIT_HEAD, x0: x - 0.15 - inflate, x1: x + 0.15 + inflate, y0: y + headBottom, y1: y + h - 0.02 + inflate, z0: z - 0.15 - inflate, z1: z + 0.15 + inflate };
-  out[1] = { g: HIT_BODY, x0: x - 0.25 - inflate, x1: x + 0.25 + inflate, y0: y + legTop, y1: y + headBottom, z0: z - 0.25 - inflate, z1: z + 0.25 + inflate };
-  out[2] = { g: HIT_LEGS, x0: x - 0.2 - inflate, x1: x + 0.2 + inflate, y0: y, y1: y + legTop, z0: z - 0.2 - inflate, z1: z + 0.2 + inflate };
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  if (!crouch) {
+    out[0] = box(HIT_HEAD, x, y + 1.5, y + 1.86, z, 0.16, 0.16, inflate);
+    out[1] = box(HIT_BODY, x, y + 0.88, y + 1.5, z, 0.26, 0.26, inflate);
+    out[2] = box(HIT_LEGS, x, y, y + 0.88, z, 0.24, 0.24, inflate);
+  } else {
+    // tête et buste décalés vers l'avant ; jambes plus larges (genoux en avant)
+    out[0] = box(HIT_HEAD, x + fx * 0.2, y + 1.02, y + 1.34, z + fz * 0.2, 0.16, 0.16, inflate);
+    out[1] = box(HIT_BODY, x + fx * 0.1, y + 0.55, y + 1.02, z + fz * 0.1, 0.27, 0.27, inflate);
+    out[2] = box(HIT_LEGS, x + fx * 0.15, y, y + 0.55, z + fz * 0.15, 0.32, 0.32, inflate);
+  }
   return out;
 }
 
 const hbTmp = [];
 // Raycast contre un joueur. Renvoie {t, g} ou null.
-export function rayPlayer(ox, oy, oz, dx, dy, dz, maxT, px, py, pz, crouch, inflate = 0) {
-  const boxes = playerHitboxes(px, py, pz, crouch, inflate, hbTmp);
+export function rayPlayer(ox, oy, oz, dx, dy, dz, maxT, px, py, pz, crouch, inflate = 0, yaw = 0) {
+  const boxes = playerHitboxes(px, py, pz, crouch, inflate, hbTmp, yaw);
   let best = Infinity, g = -1;
   for (const b of boxes) {
     const t = rayBox(ox, oy, oz, dx, dy, dz, b, maxT, null);

@@ -4,14 +4,14 @@ export const TICK_RATE = 30;          // ticks serveur par seconde
 export const SNAPSHOT_RATE = 20;      // snapshots envoyés par seconde
 export const CLIENT_SEND_RATE = 30;   // états envoyés par le client par seconde
 export const INTERP_DELAY = 100;      // ms de retard d'interpolation côté client
-export const MAX_REWIND = 300;        // ms max de compensation de latence
+export const MAX_REWIND = 800;        // ms max de compensation de latence (jusqu'à ~350 ms de ping)
 
 export const PLAYER = {
   halfWidth: 0.32,
   height: 1.8,
   crouchHeight: 1.25,
   eye: 1.62,
-  crouchEye: 1.1,
+  crouchEye: 1.2, // au niveau des yeux du modèle accroupi
   maxHp: 100,
 };
 

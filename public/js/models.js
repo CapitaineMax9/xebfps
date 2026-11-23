@@ -534,9 +534,9 @@ export function buildAvatar(outfitIdx) {
   box(0.08, 0.05, 0.01, M.accent, 0.12, 0.42, -0.156, spine); // écusson
   box(0.3, 0.34, 0.12, M.vest, 0, 0.32, 0.2, spine); // sac
   box(0.04, 0.3, 0.04, M.strap, 0.1, 0.62, 0.22, spine); // antenne radio
-  const neck = box(0.12, 0.08, 0.12, M.skin, 0, 0.56, 0, spine);
+  const neck = box(0.12, 0.08, 0.12, M.skin, 0, 0.54, 0, spine);
   void neck;
-  const head = new THREE.Group(); head.position.y = 0.72; spine.add(head);
+  const head = new THREE.Group(); head.position.y = 0.66; spine.add(head);
   box(0.22, 0.25, 0.24, M.skin, 0, 0, 0, head);
   if (o.wrap) {
     box(0.235, 0.27, 0.25, M.wrap, 0, 0.01, 0.005, head);
@@ -606,15 +606,15 @@ export function poseAvatar(av, st) {
   const sw = Math.sin(st.walk) * mv;
   const bob = Math.abs(Math.cos(st.walk)) * 0.04 * mv;
   // hanches et colonne
-  u.hips.position.y = 0.92 - 0.46 * c - bob * (1 - c);
-  u.spine.rotation.x = -0.38 * c - 0.06 * mv;
+  u.hips.position.y = 0.92 - 0.4 * c - bob * (1 - c);
+  u.spine.rotation.x = -0.35 * c - 0.06 * mv;
   u.head.rotation.x = 0.3 * c + st.pitch * 0.35;
   // jambes
   u.legs.forEach((L, i) => {
     const s = i === 0 ? 1 : -1;
     let thigh = sw * 0.7 * s, knee = Math.max(0, -Math.sin(st.walk + (i ? Math.PI : 0)) * 1.1) * mv;
-    thigh = thigh * (1 - c) - 1.45 * c + (i ? 0.25 : -0.1) * c;
-    knee = knee * (1 - c) + 2.05 * c;
+    thigh = thigh * (1 - c) - (i ? 1.42 : 1.5) * c;
+    knee = knee * (1 - c) + (i ? 1.62 : 1.6) * c;
     if (st.air) { thigh = -0.7 + (i ? 0.3 : 0); knee = 1.2; }
     L.hip.rotation.x = -thigh;
     L.knee.rotation.x = -knee; // le tibia part vers l'arrière
