@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { mulberry32 } from './skinTex.js';
+import { buildDecor } from './decor.js';
 
 // Ambiance de chaque carte : position du soleil, atmosphère, brouillard
 const SKY = {
@@ -57,6 +58,67 @@ function canvasTex(size, draw, repeatMeters = 2) {
   return t;
 }
 
+// Normal map dérivée de la luminosité d'une texture (relief des briques, planches…)
+function normalFrom(tex, strength = 2) {
+  const src = tex.image;
+  const w = src.width, h = src.height;
+  const d = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const lum = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) lum[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) / 255;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const L = (xx, yy) => lum[((yy + h) % h) * w + ((xx + w) % w)];
+    const dx = (L(x + 1, y) - L(x - 1, y)) * strength, dy = (L(x, y + 1) - L(x, y - 1)) * strength;
+    const nl = Math.hypot(dx, dy, 1);
+    const k = (y * w + x) * 4;
+    img.data[k] = (-dx / nl * 0.5 + 0.5) * 255; img.data[k + 1] = (dy / nl * 0.5 + 0.5) * 255; img.data[k + 2] = (1 / nl * 0.5 + 0.5) * 255; img.data[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+
+// Bruit doux tuilable pour varier la teinte à grande échelle
+let macroTex = null;
+function macro() {
+  if (macroTex) return macroTex;
+  const N = 128, r = mulberry32(99), P = 8;
+  const g = Array.from({ length: P * P }, () => r());
+  const g2 = Array.from({ length: 32 * 32 }, () => r());
+  const vn = (arr, p, x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); const at = (i, j) => arr[(((j % p) + p) % p) * p + (((i % p) + p) % p)]; const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+  const c = document.createElement('canvas'); c.width = c.height = N;
+  const ctx = c.getContext('2d'); const img = ctx.createImageData(N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const v = vn(g, P, x / N * P, y / N * P) * 0.7 + vn(g2, 32, x / N * 32, y / N * 32) * 0.3;
+    const k = (y * N + x) * 4; img.data[k] = img.data[k + 1] = img.data[k + 2] = v * 255; img.data[k + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  macroTex = new THREE.CanvasTexture(c);
+  macroTex.wrapS = macroTex.wrapT = THREE.RepeatWrapping;
+  return macroTex;
+}
+
+// Variation de couleur selon la position + salissure au pied des murs
+function addMacro(mat, groundDirt) {
+  const tex = macro();
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.macroTex = { value: tex };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;\nuniform sampler2D macroTex;')
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        float mA = texture2D(macroTex, vWPos.xz * 0.018 + vec2(vWPos.y * 0.011)).r;
+        float mB = texture2D(macroTex, (vWPos.zx + vec2(vWPos.y)) * 0.09).r;
+        diffuseColor.rgb *= mix(0.8, 1.14, mA) * mix(0.92, 1.06, mB);
+        ${groundDirt ? 'diffuseColor.rgb *= mix(0.62, 1.0, smoothstep(0.0, 0.9, vWPos.y));' : ''}`);
+  };
+  mat.customProgramCacheKey = () => 'macro' + (groundDirt ? '1' : '0');
+}
+
 function speckle(ctx, s, rnd, n, cols, size = 2) {
   for (let i = 0; i < n; i++) {
     ctx.fillStyle = cols[Math.floor(rnd() * cols.length)];
@@ -70,24 +132,24 @@ function speckle(ctx, s, rnd, n, cols, size = 2) {
 const TEX = {};
 function textures() {
   if (TEX.ready) return TEX;
-  TEX.sand = canvasTex(256, (ctx, s, r) => {
+  TEX.sand = canvasTex(512, (ctx, s, r) => {
     ctx.fillStyle = '#d2b98a'; ctx.fillRect(0, 0, s, s);
     speckle(ctx, s, r, 4000, ['#c4a874', '#e0cba0', '#b89a66', '#a88d5c'], 2);
     for (let i = 0; i < 30; i++) { ctx.strokeStyle = 'rgba(160,130,90,0.15)'; ctx.lineWidth = 2; ctx.beginPath(); const y = r() * s; ctx.moveTo(0, y); ctx.bezierCurveTo(s * 0.3, y + 6, s * 0.6, y - 6, s, y); ctx.stroke(); }
   }, 4);
-  TEX.concrete = canvasTex(256, (ctx, s, r) => {
+  TEX.concrete = canvasTex(512, (ctx, s, r) => {
     ctx.fillStyle = '#8d8f91'; ctx.fillRect(0, 0, s, s);
     speckle(ctx, s, r, 3500, ['#7a7c7e', '#a2a4a6', '#6b6d70'], 2);
-    ctx.strokeStyle = 'rgba(40,40,40,0.35)'; ctx.lineWidth = 2; ctx.strokeRect(0, 0, s, s);
+    ctx.strokeStyle = 'rgba(40,40,40,0.18)'; ctx.lineWidth = 1.5; ctx.strokeRect(0, 0, s, s);
     for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(60,55,50,0.08)'; ctx.beginPath(); ctx.arc(r() * s, r() * s, 20 + r() * 40, 0, 7); ctx.fill(); }
   }, 4);
-  TEX.wall = canvasTex(256, (ctx, s, r) => {
+  TEX.wall = canvasTex(512, (ctx, s, r) => {
     ctx.fillStyle = '#d9c29a'; ctx.fillRect(0, 0, s, s);
     speckle(ctx, s, r, 3000, ['#cbb185', '#e6d3ad', '#c2a676'], 3);
     for (let i = 0; i < 14; i++) { ctx.fillStyle = 'rgba(150,110,70,0.06)'; ctx.beginPath(); ctx.ellipse(r() * s, r() * s, 20 + r() * 40, 10 + r() * 20, r() * 3, 0, 7); ctx.fill(); }
     ctx.fillStyle = 'rgba(120,90,60,0.25)'; ctx.fillRect(0, s - 18, s, 18);
   }, 3);
-  TEX.wall2 = canvasTex(256, (ctx, s, r) => {
+  TEX.wall2 = canvasTex(512, (ctx, s, r) => {
     ctx.fillStyle = '#b89c72'; ctx.fillRect(0, 0, s, s);
     const bh = 32, bw = 64;
     for (let y = 0; y < s; y += bh) for (let x = -(y / bh % 2) * bw / 2; x < s; x += bw) {
@@ -97,10 +159,10 @@ function textures() {
     }
     speckle(ctx, s, r, 1500, ['#9c8460', '#d0b88e'], 2);
   }, 2.5);
-  TEX.stone = canvasTex(256, (ctx, s, r) => {
+  TEX.stone = canvasTex(512, (ctx, s, r) => {
     ctx.fillStyle = '#9a8f80'; ctx.fillRect(0, 0, s, s);
     for (let y = 0; y < s; y += 64) for (let x = 0; x < s; x += 64) {
-      const v = 0.85 + r() * 0.25;
+      const v = 0.93 + r() * 0.1;
       ctx.fillStyle = `rgb(${154 * v | 0},${143 * v | 0},${128 * v | 0})`;
       ctx.fillRect(x + 3, y + 3, 58, 58);
     }
@@ -120,10 +182,13 @@ function textures() {
   TEX.crate2 = crateTex('#7f8a4a', '#949f5a');
   TEX.sandbag = canvasTex(128, (ctx, s, r) => {
     ctx.fillStyle = '#b5a070'; ctx.fillRect(0, 0, s, s);
-    for (let y = 0; y < s; y += 32) for (let x = -(y / 32 % 2) * 24; x < s; x += 48) {
-      ctx.fillStyle = `rgba(${150 + r() * 30},${130 + r() * 25},${90 + r() * 20},1)`;
-      ctx.beginPath(); ctx.ellipse(x + 24, y + 16, 23, 14, 0, 0, 7); ctx.fill();
-      ctx.strokeStyle = 'rgba(80,60,30,0.5)'; ctx.stroke();
+    ctx.fillStyle = '#7a6a48'; ctx.fillRect(0, 0, s, s);
+    for (let y = 0; y < s; y += 16) for (let x = -(y / 16 % 2) * 16; x < s; x += 32) {
+      const v = 0.92 + r() * 0.12;
+      const g = ctx.createRadialGradient(x + 16, y + 6, 2, x + 16, y + 8, 18);
+      g.addColorStop(0, `rgb(${196 * v | 0},${178 * v | 0},${132 * v | 0})`); g.addColorStop(1, `rgb(${150 * v | 0},${132 * v | 0},${92 * v | 0})`);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(x + 16, y + 8, 15.5, 7.2, 0, 0, 7); ctx.fill();
     }
   }, 1.2);
   TEX.metal = canvasTex(256, (ctx, s, r) => {
@@ -141,6 +206,9 @@ function textures() {
   TEX.container_b = container('#2a5a8a');
   TEX.container_g = container('#3a7a4a');
   TEX.container_y = container('#c89a2a');
+  for (const k of ['wall', 'wall2', 'stone', 'crate', 'crate2', 'sandbag', 'metal', 'concrete', 'sand', 'container_r', 'container_b', 'container_g', 'container_y']) {
+    TEX['n_' + k] = normalFrom(TEX[k], k === 'sand' ? 1.2 : 3);
+  }
   TEX.ready = true;
   return TEX;
 }
@@ -165,6 +233,7 @@ export function buildWorld(scene, map, settings) {
   group.name = 'world';
   const byMat = new Map();
   for (const b of map.boxes) {
+    if (b.m === 'barrel') continue; // dessinés dans les décors
     let key = b.m;
     if (key === 'floor') key = map.theme.floor === 'concrete' ? 'concrete' : 'sand';
     if (!byMat.has(key)) byMat.set(key, []);
@@ -185,13 +254,18 @@ export function buildWorld(scene, map, settings) {
     const geo = mergeGeometries(geos, false);
     geos.forEach((g) => g.dispose());
     const metalLike = key === 'metal' || key.startsWith('container');
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: metalLike ? 0.6 : 0.92, metalness: metalLike ? 0.3 : 0 });
+    const floorLike = key === 'sand' || key === 'concrete';
+    const mat = new THREE.MeshStandardMaterial({ map: tex, normalMap: T['n_' + key] || null, roughness: metalLike ? 0.55 : 0.92, metalness: metalLike ? 0.35 : 0 });
+    if (mat.normalMap) mat.normalScale.set(0.8, 0.8);
+    addMacro(mat, !floorLike);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = key !== 'sand' && key !== 'concrete';
     mesh.receiveShadow = true;
     mesh.name = key;
     group.add(mesh);
   }
+
+  buildDecor(map, group, settings.gfx);
 
   // ── Ciel atmosphérique + soleil ────────────────────────────────────────
   const sk = SKY[map.id] || SKY.oasis;

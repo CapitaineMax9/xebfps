@@ -24,7 +24,9 @@ function build(def) {
       if (dir === '-z') B(x - w / 2, 0, z - b, x + w / 2, h, z - a, m);
     }
   };
-  def.build({ B, block, crate, stairs });
+  // tonneau (collision carrée, rendu cylindrique)
+  const barrel = (x, z) => B(x - 0.3, 0, z - 0.3, x + 0.3, 0.95, z + 0.3, 'barrel');
+  def.build({ B, block, crate, stairs, barrel });
   const s = def.size;
   // Sol + murs extérieurs
   B(-s[0] / 2 - 2, -1, -s[1] / 2 - 2, s[0] / 2 + 2, 0, s[1] / 2 + 2, 'floor');
@@ -46,7 +48,9 @@ function build(def) {
 const oasis = build({
   id: 'oasis', name: 'Oasis', size: [92, 92], wallHeight: 9,
   theme: { sky: ['#7fb6e6', '#f4dcb0'], fog: '#e8d5b0', fogNear: 60, fogFar: 170, sun: '#fff1d6', floor: 'sand', ambient: 0.75 },
-  build: ({ block, crate, stairs, B }) => {
+  build: ({ block, crate, stairs, B, barrel }) => {
+    barrel(31, 4); barrel(31.8, 4.7); barrel(-31, -4); barrel(-31.8, -4.7);
+    barrel(6, -12); barrel(-6, 12); barrel(20, -38); barrel(-20, 38); barrel(41, 18); barrel(-41, -18);
     // Bâtiments du milieu (forment le long couloir central x ∈ [-3.5, 3.5])
     block(-14, -28, -3.5, -4, 7);
     block(3.5, 4, 14, 28, 7);
@@ -135,7 +139,9 @@ const oasis = build({
 const docks = build({
   id: 'docks', name: 'Docks', size: [64, 52], wallHeight: 8, outerMat: 'metal',
   theme: { sky: ['#4f6d8f', '#c9b9a6'], fog: '#9aa5b0', fogNear: 40, fogFar: 120, sun: '#ffe2c0', floor: 'concrete', ambient: 0.7 },
-  build: ({ B, crate, stairs }) => {
+  build: ({ B, crate, stairs, barrel }) => {
+    barrel(-5, -10); barrel(-4.3, -10.7); barrel(5, 10); barrel(4.3, 10.7); barrel(-24, 10); barrel(24, -10);
+    barrel(0, -19); barrel(0.7, -19.5); barrel(0, 19); barrel(-0.7, 19.5); barrel(-17.5, 0.5); barrel(17.5, -0.5);
     // conteneur : longueur 6 / largeur 2.5 / hauteur 2.6
     const cont = (x, z, rot, m, y = 0) => {
       const L = 6, W = 2.5, H = 2.6;
@@ -195,7 +201,8 @@ const docks = build({
 const duel = build({
   id: 'duel', name: 'Duel', size: [32, 72], wallHeight: 7, outerMat: 'wall2',
   theme: { sky: ['#ef9a6a', '#ffd8a8'], fog: '#e9b48f', fogNear: 50, fogFar: 140, sun: '#ffd0a0', floor: 'sand', ambient: 0.8 },
-  build: ({ B, crate }) => {
+  build: ({ B, crate, barrel }) => {
+    barrel(-13, -16); barrel(13, 16); barrel(6, -24); barrel(-6, 24); barrel(-2.5, -5); barrel(2.5, 5);
     // Muret central avec ouvertures
     B(-16, 0, -0.4, -9, 1.2, 0.4, 'sandbag');
     B(-5, 0, -0.4, 5, 1.2, 0.4, 'sandbag');
