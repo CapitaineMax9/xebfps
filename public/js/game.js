@@ -145,6 +145,7 @@ function newMe(id) {
 
 export function enterGame(msg) {
   S.active = true;
+  view.rt = 0; view.latest = 0; view.last = 0;
   S.me = newMe(msg.you);
   S.mode = msg.mode;
   S.cfg = MODES[msg.mode];
@@ -257,8 +258,23 @@ function remoteWeapon(p, wid) {
   anchor.add(p.weapon);
 }
 
+// Horloge d'affichage des autres joueurs : calée sur le dernier snapshot reçu
+// (marche quelle que soit la latence ; les tirs envoient exactement ce temps au serveur)
+const view = { rt: 0, latest: 0, last: 0 };
+function renderClock() {
+  const now = performance.now();
+  const el = view.last ? Math.min(250, now - view.last) : 0;
+  view.last = now;
+  if (!view.latest) return 0;
+  const target = view.latest - INTERP_DELAY;
+  if (!view.rt || Math.abs(view.rt - target) > 250) view.rt = target;
+  else view.rt += el + (target - view.rt) * 0.08;
+  return view.rt;
+}
+export function viewTime() { return view.rt || serverNow() - INTERP_DELAY; }
+
 function updateRemotes(dt) {
-  const rt = serverNow() - INTERP_DELAY;
+  const rt = renderClock() || serverNow() - INTERP_DELAY;
   const me = S.me;
   for (const p of S.players.values()) {
     const sn = p.snaps;
@@ -547,7 +563,7 @@ function shoot() {
   for (let i = 0; i < n; i++) dirs.push(spreadDir(base[0], base[1], base[2], spread + (w.pelletSpread || 0)));
   const o = eyePos();
   const scopedShot = me.scoped > 0;
-  send({ t: 'shot', w: me.cur, o: [o.x, o.y, o.z], d: dirs.map((d) => d.map((v) => +v.toFixed(5))), rt: serverNow() - INTERP_DELAY, sc: scopedShot });
+  send({ t: 'shot', w: me.cur, o: [o.x, o.y, o.z], d: dirs.map((d) => d.map((v) => +v.toFixed(5))), rt: viewTime(), sc: scopedShot });
 
   // recul visuel (le viseur ne montre pas exactement l'impact)
   const r = w.recoil;
@@ -604,7 +620,7 @@ function localTrace(o, d, range) {
   const normal = new THREE.Vector3(mh.nx, mh.ny, mh.nz);
   for (const p of S.players.values()) {
     if (!p.alive || (S.cfg.teams && p.team === S.me.team)) continue;
-    const r = rayPlayer(o.x, o.y, o.z, d.x, d.y, d.z, best, p.x, p.y, p.z, p.ct > 0.5);
+    const r = rayPlayer(o.x, o.y, o.z, d.x, d.y, d.z, best, p.x, p.y, p.z, p.ct > 0.5, 0, p.yaw);
     if (r && r.t < best) { best = r.t; pl = p; head = r.g === HIT_HEAD; }
   }
   tmpHB.copy(o).addScaledVector(d, best);
@@ -619,7 +635,7 @@ function knifeAttack(heavy) {
   me.protectUntil = 0;
   const o = eyePos();
   const d = dirFromAngles(me.yaw, me.pitch);
-  send({ t: 'knife', heavy, o: [o.x, o.y, o.z], d, rt: serverNow() - INTERP_DELAY });
+  send({ t: 'knife', heavy, o: [o.x, o.y, o.z], d, rt: viewTime() });
   if (S.vm) { S.vm.swing = 1; S.vm.swingHeavy = heavy; }
   A.playKnife(null, false);
   // impact sur mur
@@ -777,7 +793,7 @@ function updateAimTarget() {
   let best = mh.t, bp = null;
   for (const p of S.players.values()) {
     if (!p.alive) continue;
-    const r = rayPlayer(o.x, o.y, o.z, d[0], d[1], d[2], best, p.x, p.y, p.z, p.ct > 0.5);
+    const r = rayPlayer(o.x, o.y, o.z, d[0], d[1], d[2], best, p.x, p.y, p.z, p.ct > 0.5, 0, p.yaw);
     if (r && r.t < best) { best = r.t; bp = p; }
   }
   if (bp) bp.aimed = true;
@@ -1071,6 +1087,7 @@ function pushSnap(p, e, st) {
 function setupNet() {
   on('s', (m) => {
     if (!S.active) return;
+    if (m.st > view.latest || m.st < view.latest - 5000) view.latest = m.st; // (horloge du serveur redémarrée)
     for (const e of m.p) {
       if (e[0] === S.me.id) continue;
       const p = S.players.get(e[0]);
@@ -1192,7 +1209,7 @@ function setupNet() {
       hs: m.hs, ns: m.ns, bs: m.bs, an: m.a ? nameOf(m.a) : null,
     }, m.k === me.id || m.v === me.id);
     const victim = S.players.get(m.v);
-    if (victim) { victim.deadT = 0; victim.deathY = victim.y; victim.alive = false; victim.diedAt = serverNow(); if (victim.avatar) victim.avatar.position.set(victim.x, victim.y, victim.z); }
+    if (victim) { victim.deadT = 0; victim.deathY = victim.y; victim.alive = false; victim.diedAt = view.latest || serverNow(); if (victim.avatar) victim.avatar.position.set(victim.x, victim.y, victim.z); }
     if (m.k === me.id && m.v !== me.id) {
       A.playKill(m.hs);
       let txt = m.hs ? 'HEADSHOT' : '';

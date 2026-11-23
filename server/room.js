@@ -372,7 +372,7 @@ export class Room {
       if (p.isBot && p.alive) p.brain.update(dt, t);
       // historique pour la compensation de latence
       if (p.alive) {
-        p.history.push({ t, x: p.body.x, y: p.body.y, z: p.body.z, c: p.body.crouch });
+        p.history.push({ t, x: p.body.x, y: p.body.y, z: p.body.z, c: p.body.crouch, yaw: p.yaw });
         if (p.history.length > 40) p.history.shift();
       }
     }
@@ -464,13 +464,13 @@ export class Room {
   // Position d'un joueur à l'instant t (interpolation de l'historique)
   stateAt(p, t) {
     const h = p.history;
-    if (!h.length) return { x: p.body.x, y: p.body.y, z: p.body.z, c: p.body.crouch };
+    if (!h.length) return { x: p.body.x, y: p.body.y, z: p.body.z, c: p.body.crouch, yaw: p.yaw };
     if (t >= h[h.length - 1].t) return h[h.length - 1];
     for (let i = h.length - 1; i > 0; i--) {
       const a = h[i - 1], b = h[i];
       if (a.t <= t && t <= b.t) {
         const k = (t - a.t) / Math.max(1, b.t - a.t);
-        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k, c: k < 0.5 ? a.c : b.c };
+        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k, c: k < 0.5 ? a.c : b.c, yaw: k < 0.5 ? a.yaw : b.yaw };
       }
     }
     return h[0];
@@ -535,7 +535,7 @@ export class Room {
       const mh = raycastMap(boxes, o[0], o[1], o[2], dx, dy, dz, w.range);
       let best = mh.t, bestQ = null, bestG = -1;
       for (const { q, s } of enemies) {
-        const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c);
+        const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0, s.yaw);
         if (r && r.t < best) { best = r.t; bestQ = q; bestG = r.g; }
       }
       const tEnd = Math.min(best, w.range);
@@ -580,7 +580,7 @@ export class Room {
     let best = mh.t < range ? mh.t : range, bestQ = null;
     for (const q of this.enemiesOf(p)) {
       const s = this.stateAt(q, rt);
-      const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0.22);
+      const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0.22, s.yaw);
       if (r && r.t < best) { best = r.t; bestQ = q; }
     }
     this.broadcast({ t: 'kn', id: p.id, heavy, hit: !!bestQ }, p);
