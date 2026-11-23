@@ -155,7 +155,7 @@ export const CASES = [
     items: ['glock_damier', 'mp9_graffiti', 'nova_plan', 'p90_topo', 'ssg_tiedye', 'usp_koi', 'deagle_pixel', 'm4_graffiti', 'ak_azteque', 'ssg_toile', 'awp_tag', 'ak_kaleido', 'deagle_orfeuille', 'bayo_toile', 'flip_kaleido', 'bayo_damas'],
   },
   {
-    id: 'safari', name: 'Caisse Safari', price: 300, color: '#c98a2b',
+    id: 'safari', name: 'Caisse Safari', price: 300, color: '#6f8a2e',
     items: ['glock_leopard', 'mp9_bois', 'p90_zebre', 'nova_savane', 'usp_leopard', 'ssg_koi', 'm4_damas', 'ak_leopard', 'deagle_tigre', 'm4_couchant', 'awp_safari', 'ak_wyrm', 'usp_dragon', 'kara_tigre', 'papi_damas', 'flip_leopard'],
   },
   {

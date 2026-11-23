@@ -10,3 +10,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # Base PostgreSQL gratuite (ex. Neon) pour que les comptes survivent aux redémarrages.
+      # Render te demandera la valeur lors de la création du Blueprint.
+      - key: DATABASE_URL
+        sync: false

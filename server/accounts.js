@@ -15,6 +15,9 @@ export async function initAccounts() {
   await store.init();
   try { await store.cleanup(GUEST_MAX_AGE); } catch (e) { console.error('Nettoyage des invités :', e.message); }
   console.log(`Comptes : stockage ${store.kind}`);
+  if (store.kind === 'fichier' && process.env.RENDER) {
+    console.warn('ATTENTION : pas de DATABASE_URL. Sur Render, les comptes seront perdus à chaque redémarrage. Voir le README (base Neon gratuite).');
+  }
 }
 
 // ── Utilitaires ──────────────────────────────────────────────────────────

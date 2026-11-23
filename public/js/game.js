@@ -9,7 +9,7 @@ import { createBody, stepBody, wishFromKeys, eyeHeight } from '/shared/physics.j
 import { raycastMap, rayPlayer, HIT_HEAD } from '/shared/raycast.js';
 import { SKINS, itemFullName } from '/shared/skins.js';
 import { buildWorld, disposeWorld } from './world.js';
-import { buildWeapon, buildArms, buildAvatar } from './models.js';
+import { buildWeapon, buildArms, buildAvatar, poseAvatar } from './models.js';
 import { Effects } from './effects.js';
 import { Pipeline } from './gfx.js';
 import * as A from './audio.js';
@@ -87,6 +87,7 @@ export function initGame(canvas, onExit) {
   const vd = new THREE.DirectionalLight(0xfff1dd, 1.6); vd.position.set(1, 2, 1);
   S.vmScene.add(vh, vd);
   S.vmLight = vh;
+  S.vmSun = vd;
 
   S.effects = new Effects(S.scene);
   S.effects.group.userData.noAO = true;
@@ -181,6 +182,10 @@ function loadMap(mapId) {
   S.world = buildWorld(S.scene, S.map, settings());
   S.scene.environment = S.env;
   S.scene.environmentIntensity = 0.12;
+  // l'arme en main est éclairée comme la carte
+  const sun = S.world.userData.sun;
+  S.vmSun.color.copy(sun.color); S.vmSun.intensity = sun.intensity * 0.75;
+  S.world.traverse((o) => { if (o.isHemisphereLight) { S.vmLight.color.copy(o.color); S.vmLight.groundColor.copy(o.groundColor); S.vmLight.intensity = o.intensity * 1.6; } });
   S.effects.clear();
 }
 
@@ -243,7 +248,7 @@ function remoteWeapon(p, wid) {
   p.weaponKey = key;
   const anchor = p.avatar.userData.weaponAnchor;
   if (p.weapon) anchor.remove(p.weapon);
-  p.weapon = buildWeapon(wid, sk || null, { statTrak: false, shadows: true });
+  p.weapon = buildWeapon(wid, sk || null, { statTrak: false, shadows: true, detail: false });
   anchor.add(p.weapon);
 }
 
@@ -277,35 +282,28 @@ function updateRemotes(dt) {
     if (wid !== p.wid) { p.wid = wid; }
     if (p.alive || p.deadT >= 0) remoteWeapon(p, p.wid);
 
+    const sp = Math.hypot(p.x - p.lastX, p.z - p.lastZ) / Math.max(dt, 1e-3);
+    p.lastX = p.x; p.lastZ = p.z;
+    const air = !!(p.flags & 16);
+    const kind = WEAPONS[p.wid] ? WEAPONS[p.wid].kind : 'rifle';
     if (p.deadT >= 0) {
       // animation de mort
       p.deadT += dt;
-      const t = Math.min(1, p.deadT / 0.45);
-      av.rotation.x = t * Math.PI / 2 * 0.98; // tombe en arrière
-      av.position.y = p.deathY + Math.sin(t * Math.PI) * 0.15 + t * 0.12;
+      const t = Math.min(1, p.deadT / 0.5);
+      poseAvatar(av, { walk: p.walk, move: 0, crouch: p.ct, air: false, pitch: 0, kind, dead: t * t });
+      av.position.y = p.deathY + Math.sin(t * Math.PI) * 0.1;
       av.visible = p.deadT < 4;
       p.tag.visible = false;
       continue;
     }
     av.visible = alive;
     if (!alive) continue;
-    av.rotation.set(0, p.yaw, 0);
+    av.rotation.y = p.yaw;
     av.position.set(p.x, p.y, p.z);
-    const u = av.userData;
-    const ct = p.ct;
-    u.upper.position.y = 0.85 - 0.55 * ct;
-    u.legs.scale.y = 1 - 0.65 * ct;
-    u.arms.rotation.x = p.pitch;
-    u.headG.rotation.x = p.pitch * 0.5;
-    // marche
-    const sp = Math.hypot(p.x - p.lastX, p.z - p.lastZ) / Math.max(dt, 1e-3);
-    p.lastX = p.x; p.lastZ = p.z;
-    const air = !!(p.flags & 16);
+    const move = air ? 0 : Math.min(1, sp / 5);
+    p.walk += dt * Math.min(sp, 7) * 1.7;
+    poseAvatar(av, { walk: p.walk, move: sp > 0.4 ? move : 0, crouch: p.ct, air, pitch: p.pitch, kind, dead: -1 });
     const moving = sp > 0.5 && !air;
-    p.walk += dt * Math.min(sp, 7) * 1.6;
-    const sw = moving ? Math.sin(p.walk) * Math.min(1, sp / 5) * 0.65 : 0;
-    u.legL.rotation.x = sw; u.legR.rotation.x = -sw;
-    if (air) { u.legL.rotation.x = -0.4; u.legR.rotation.x = 0.3; }
     // protection d'apparition : clignote
     if (p.flags & 8) av.visible = Math.floor(performance.now() / 120) % 2 === 0;
     // bruits de pas
@@ -362,6 +360,7 @@ function setViewWeapon(wid) {
   S.vm = { root, pivot, model, arms, wid, item, flash, flashT: 0, kick: 0, kickRot: 0, drawT: 0, swayX: 0, swayY: 0, bob: 0, swing: 0, swingHeavy: false, base };
 }
 
+const _qInv = new THREE.Quaternion();
 function updateViewmodel(dt) {
   const vm = S.vm, me = S.me;
   if (!vm) return;
@@ -447,6 +446,10 @@ function updateViewmodel(dt) {
 
   vm.root.position.set(px, py, pz);
   vm.pivot.rotation.set(rx, ry, rz);
+  // direction du soleil dans l'espace de la caméra
+  if (S.world && S.world.userData.sunDir) {
+    S.vmSun.position.copy(S.world.userData.sunDir).applyQuaternion(_qInv.copy(S.camera.quaternion).invert());
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════
