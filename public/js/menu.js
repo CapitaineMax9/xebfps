@@ -516,7 +516,7 @@ function renderSettings() {
   f.innerHTML = '<h3>Paramètres</h3>';
   const gq = document.createElement('div');
   gq.className = 'set-row';
-  gq.innerHTML = `<label for="set-gfx">Qualité graphique</label><select id="set-gfx">${Object.entries(GFX_PRESETS).map(([k, v]) => `<option value="${k}" ${st.gfx === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select><span></span>`;
+  gq.innerHTML = `<label for="set-gfx">Qualité graphique</label><select id="set-gfx"><option value="auto" ${st.gfx === 'auto' ? 'selected' : ''}>Auto (recommandé)</option>${Object.entries(GFX_PRESETS).map(([k, v]) => `<option value="${k}" ${st.gfx === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select><span></span>`;
   gq.querySelector('select').onchange = (e) => { st.gfx = e.target.value; P.save(); cb.onSettings(); };
   f.appendChild(gq);
   for (const [key, label, type, min, max, stp] of rows) {
