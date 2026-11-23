@@ -1,0 +1,20 @@
+{
+  "name": "xebfps",
+  "version": "1.0.0",
+  "description": "FPS multijoueur en ligne dans le navigateur : FFA, TDM, Gun Game, AWP Only, Headshot Only, skins et caisses.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node scripts/selftest.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "8.13.1",
+    "three": "0.170.0",
+    "ws": "8.18.0"
+  }
+}

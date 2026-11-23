@@ -1,0 +1,16 @@
+# Déploiement en un clic sur Render (https://render.com) : New → Blueprint → choisir ce dépôt.
+services:
+  - type: web
+    name: xebfps
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # Base PostgreSQL gratuite (ex. Neon) pour que les comptes survivent aux redémarrages.
+      # Render te demandera la valeur lors de la création du Blueprint.
+      - key: DATABASE_URL
+        sync: false

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XEB FPS</title>
+  <meta name="description" content="FPS multijoueur en ligne : FFA, TDM, Gun Game, AWP Only, Headshot Only, skins et caisses.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23ffb347' stroke-width='3'/%3E%3Cpath d='M16 2v9M16 21v9M2 16h9M21 16h9' stroke='%23ffb347' stroke-width='3'/%3E%3C/svg%3E">
+  <script type="importmap">
+  { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- ═══════════════════════ HUD ═══════════════════════ -->
+  <div id="hud" class="hidden">
+    <div id="scope" class="hidden"><div class="scope-h"></div><div class="scope-v"></div></div>
+    <div id="crosshair"><i class="c-t"></i><i class="c-b"></i><i class="c-l"></i><i class="c-r"></i><i class="c-d"></i></div>
+    <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+    <div id="dmg-flash"></div>
+    <div id="dmg-dirs"></div>
+    <canvas id="radar" width="200" height="200"></canvas>
+    <div id="topbar">
+      <div id="tb-left" class="tb-score"></div>
+      <div id="tb-time">10:00</div>
+      <div id="tb-right" class="tb-score"></div>
+      <div id="tb-mode"></div>
+    </div>
+    <div id="killfeed"></div>
+    <div id="center-msg"></div>
+    <div id="sub-msg"></div>
+    <div id="credit-pops"></div>
+    <div id="chat"><div id="chat-log"></div><input id="chat-input" maxlength="140" autocomplete="off" placeholder="Message… (Entrée pour envoyer)"></div>
+    <div id="hp-box"><span class="hp-cross">✚</span><span id="hp-val">100</span><div id="hp-bar"><div></div></div></div>
+    <div id="ammo-box"><div id="weap-name">AK-47</div><div><span id="ammo-mag">30</span><span id="ammo-res"> / 90</span></div><div id="weap-slots"></div></div>
+    <div id="fps"></div>
+    <div id="death-panel" class="hidden">
+      <div class="dp-title">TU ES MORT</div>
+      <div id="dp-killer"></div>
+      <div id="dp-skin"></div>
+      <div id="dp-timer"></div>
+    </div>
+    <div id="scoreboard" class="hidden"></div>
+    <div id="end-screen" class="hidden"></div>
+    <div id="loadout" class="hidden">
+      <h2>Choix des armes <small>(B pour fermer)</small></h2>
+      <div class="lo-row"><h3>Arme principale</h3><div id="lo-prim" class="lo-list"></div></div>
+      <div class="lo-row"><h3>Pistolet</h3><div id="lo-sec" class="lo-list"></div></div>
+      <p class="hint">Le changement est immédiat dans les 10 premières secondes après l'apparition (avant de tirer), sinon à la prochaine réapparition.</p>
+    </div>
+    <div id="pause" class="hidden">
+      <div class="pause-box">
+        <h2>PAUSE</h2>
+        <button id="btn-resume" class="btn primary">Reprendre</button>
+        <button id="btn-loadout" class="btn">Choix des armes (B)</button>
+        <button id="btn-settings-ig" class="btn">Paramètres</button>
+        <button id="btn-quit" class="btn danger">Quitter la partie</button>
+        <p class="hint">Clique dans le jeu pour reprendre.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MENU ═══════════════════════ -->
+  <div id="menu">
+    <header id="menu-head">
+      <div class="logo">XEB<span>FPS</span></div>
+      <nav id="tabs">
+        <button data-tab="play" class="tab active">JOUER</button>
+        <button data-tab="inventory" class="tab">INVENTAIRE</button>
+        <button data-tab="cases" class="tab">CAISSES</button>
+        <button data-tab="tradeup" class="tab">CONTRAT</button>
+        <button data-tab="settings" class="tab">PARAMÈTRES</button>
+      </nav>
+      <div id="wallet"><span class="coin">◈</span> <span id="credits">0</span></div>
+    </header>
+
+    <section id="tab-play" class="tab-page active">
+      <div class="play-grid">
+        <div class="panel name-panel">
+          <label>Pseudo <input id="name-input" maxlength="16" autocomplete="off"></label>
+          <div id="acc-box" class="acc-box"></div>
+          <div id="net-status" class="net-status">Connexion…</div>
+        </div>
+        <div id="mode-cards"></div>
+        <div class="panel rooms-panel">
+          <div class="panel-head"><h3>Salons en ligne</h3><button id="btn-refresh" class="btn small">Actualiser</button></div>
+          <table id="rooms"><thead><tr><th>Salon</th><th>Mode</th><th>Carte</th><th>Joueurs</th><th></th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="panel create-panel">
+          <h3>Créer un salon</h3>
+          <div class="form-grid">
+            <label>Nom <input id="cr-name" maxlength="28" placeholder="Mon salon"></label>
+            <label>Mode <select id="cr-mode"></select></label>
+            <label>Carte <select id="cr-map"></select></label>
+            <label>Joueurs max <input id="cr-max" type="number" min="2" max="16" value="10"></label>
+            <label>Bots <input id="cr-bots" type="number" min="0" max="15" value="5"></label>
+            <label>Difficulté des bots <select id="cr-diff"><option value="easy">Facile</option><option value="normal" selected>Normal</option><option value="hard">Difficile</option></select></label>
+          </div>
+          <button id="btn-create" class="btn primary">Créer et rejoindre</button>
+        </div>
+        <div class="panel help-panel">
+          <h3>Commandes</h3>
+          <ul class="keys">
+            <li><b>Z Q S D</b> / <b>W A S D</b> se déplacer</li>
+            <li><b>Espace</b> sauter · <b>Ctrl / C</b> s'accroupir · <b>Maj</b> marcher</li>
+            <li><b>Clic gauche</b> tirer · <b>Clic droit</b> lunette (AWP/SSG) / coup lourd (couteau)</li>
+            <li><b>R</b> recharger · <b>1 2 3</b> / molette changer d'arme · <b>A</b>(AZERTY) / <b>Q</b> dernière arme</li>
+            <li><b>F</b> inspecter ton skin · <b>B</b> choix des armes · <b>Tab</b> scores · <b>Entrée</b> chat</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-inventory" class="tab-page">
+      <div class="inv-layout">
+        <div class="inv-side panel">
+          <h3>Équipement</h3>
+          <div id="equip-list"></div>
+        </div>
+        <div class="inv-main">
+          <div class="inv-tools">
+            <select id="inv-filter"><option value="all">Toutes les armes</option></select>
+            <select id="inv-sort"><option value="rarity">Trier : rareté</option><option value="new">Trier : récents</option><option value="value">Trier : valeur</option></select>
+            <span id="inv-count"></span>
+          </div>
+          <div id="inv-grid" class="item-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-cases" class="tab-page">
+      <div id="case-list"></div>
+      <div id="case-detail" class="hidden"></div>
+    </section>
+
+    <section id="tab-tradeup" class="tab-page">
+      <div class="panel">
+        <h3>Contrat d'échange</h3>
+        <p class="hint">Choisis 10 objets de la même rareté (hors ★) : tu reçois 1 objet de la rareté supérieure provenant des mêmes caisses. L'usure du résultat est la moyenne des usures.</p>
+        <div id="tu-slots"></div>
+        <button id="btn-tradeup" class="btn primary" disabled>Signer le contrat</button>
+      </div>
+      <div id="tu-grid" class="item-grid"></div>
+    </section>
+
+    <section id="tab-settings" class="tab-page">
+      <div class="panel settings-panel" id="settings-form"></div>
+    </section>
+  </div>
+
+  <!-- Fenêtre objet / aperçu 3D -->
+  <div id="item-modal" class="modal hidden">
+    <div class="modal-box">
+      <button class="modal-close" data-close>✕</button>
+      <canvas id="preview-canvas" width="640" height="360"></canvas>
+      <div id="item-info"></div>
+      <div id="item-actions"></div>
+    </div>
+  </div>
+
+  <!-- Compte -->
+  <div id="account-modal" class="modal hidden">
+    <div class="modal-box acc-modal">
+      <button class="modal-close" id="acc-close" type="button">✕</button>
+      <h2 id="acc-title">Créer un compte</h2>
+      <p class="hint" id="acc-hint"></p>
+      <form id="acc-form" autocomplete="on">
+        <label id="acc-user-row">Pseudo <input id="acc-user" maxlength="16" autocomplete="username" required></label>
+        <label id="acc-old-row" class="hidden">Ancien mot de passe <input id="acc-old" type="password" maxlength="64" autocomplete="current-password"></label>
+        <label>Mot de passe <input id="acc-pass1" type="password" maxlength="64" autocomplete="current-password" required></label>
+        <label id="acc-pass2-row">Confirmer le mot de passe <input id="acc-pass2" type="password" maxlength="64" autocomplete="new-password"></label>
+        <div id="acc-error" class="acc-error"></div>
+        <button class="btn primary" id="acc-submit" type="submit">Créer le compte</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Ouverture de caisse -->
+  <div id="opening" class="modal hidden">
+    <div class="opening-box">
+      <h2 id="op-title"></h2>
+      <div id="roulette"><div id="roulette-strip"></div><div id="roulette-line"></div></div>
+      <div id="op-result" class="hidden"></div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <div id="loading">Chargement…</div>
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
