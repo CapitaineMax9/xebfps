@@ -7,6 +7,8 @@ import { mulberry32 } from './skinTex.js';
 const std = (color, rough = 0.85, metal = 0, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
 
 // Regroupe des boîtes instanciées par matériau (un seul appel de dessin chacun)
+const SHADOW_KEYS = new Set(['cornice', 'trim', 'pillar', 'crane', 'dist', 'dist2', 'hull', 'hullTop']);
+
 class Instancer {
   constructor() { this.sets = new Map(); }
   add(key, mat, x, y, z, sx, sy, sz, ry = 0, rx = 0) {
@@ -14,11 +16,12 @@ class Instancer {
     const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, 0, 'YXZ')), new THREE.Vector3(sx, sy, sz));
     this.sets.get(key).list.push(m);
   }
-  build(group, geo = new THREE.BoxGeometry(1, 1, 1), shadows = true) {
-    for (const { mat, list } of this.sets.values()) {
+  build(group, geo = new THREE.BoxGeometry(1, 1, 1)) {
+    for (const [key, { mat, list }] of this.sets) {
       const im = new THREE.InstancedMesh(geo, mat, list.length);
       list.forEach((m, i) => im.setMatrixAt(i, m));
-      im.castShadow = shadows; im.receiveShadow = true;
+      // seuls les grands éléments projettent une ombre (les petits détails coûtent cher pour rien)
+      im.castShadow = SHADOW_KEYS.has(key); im.receiveShadow = true;
       group.add(im);
     }
   }
@@ -328,7 +331,7 @@ function buildPalms(n, ringFn, rnd, leafTex) {
   if (!trunkGeos.length) return grp;
   const trunk = new THREE.Mesh(mergeGeometries(trunkGeos), std(0x7a5a3a, 1));
   const leaves = new THREE.Mesh(mergeGeometries(leafGeos), new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.9 }));
-  trunk.castShadow = leaves.castShadow = true;
+  trunk.castShadow = leaves.castShadow = false;
   grp.add(trunk, leaves);
   void n;
   return grp;

@@ -9,7 +9,7 @@ const LEGACY_KEY = 'xebfps_profile_v1';
 export const DEFAULT_SETTINGS = {
   sens: 2.0, scopeSens: 1.0, fov: 90, volume: 0.6,
   crossColor: '#4cff6a', crossSize: 7, crossGap: 4, crossThick: 2, crossDot: false, crossDynamic: true,
-  shadows: true, showFps: false, quality: 1, viewmodelFov: 68, bob: true, gfx: 'high',
+  shadows: true, showFps: false, quality: 1, viewmodelFov: 68, bob: true, gfx: 'auto', gfxV: 2,
 };
 
 const ls = {
@@ -17,6 +17,13 @@ const ls = {
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* indisponible */ } },
   del(k) { try { localStorage.removeItem(k); } catch { /* indisponible */ } },
 };
+
+// v2 : la qualité passe en « Auto » pour tout le monde (l'ancien « Élevé » était trop lourd)
+function migrate(raw) {
+  const st = { ...DEFAULT_SETTINGS, ...raw };
+  if (raw.gfxV !== 2) { st.gfx = 'auto'; st.gfxV = 2; }
+  return st;
+}
 
 let data = {
   name: 'Joueur', registered: false, credits: 0, inventory: [], equipped: {},
@@ -32,7 +39,7 @@ export function load() {
   const legacy = legacyProfile();
   if (legacy && legacy.settings && !ls.get(SETTINGS_KEY)) st = legacy.settings;
   if (legacy && legacy.name) data.name = legacy.name;
-  data.settings = { ...DEFAULT_SETTINGS, ...st };
+  data.settings = migrate(st);
   return data;
 }
 
@@ -59,9 +66,9 @@ export function setProfile(p, { fromLogin = false } = {}) {
   const localSettings = data.settings;
   const serverSettings = p.settings && Object.keys(p.settings).length ? p.settings : null;
   data = { ...data, ...p };
-  if (serverSettings && (fromLogin || !loaded)) data.settings = { ...DEFAULT_SETTINGS, ...serverSettings };
+  if (serverSettings && (fromLogin || !loaded)) data.settings = migrate(serverSettings);
   else data.settings = localSettings;
-  if (!serverSettings) send({ t: 'settings', settings: data.settings });
+  if (!serverSettings || serverSettings.gfxV !== data.settings.gfxV || serverSettings.gfx !== data.settings.gfx) send({ t: 'settings', settings: data.settings });
   ls.set(SETTINGS_KEY, JSON.stringify(data.settings));
   loaded = true;
   emit();

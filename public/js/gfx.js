@@ -7,12 +7,15 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
+// maxDpr : résolution de rendu maximale (1 = résolution de l'écran, 0.75 = 75 %)
+// shadows : taille de la carte d'ombres (0 = pas d'ombres) ; shadowEvery : ombres recalculées 1 image sur N
 export const GFX_PRESETS = {
-  low: { label: 'Bas', post: false, ao: 0, bloom: false, samples: 0, maxDpr: 1, dust: false },
-  medium: { label: 'Moyen', post: true, ao: 0, bloom: true, samples: 4, maxDpr: 1.25, dust: true },
-  high: { label: 'Élevé', post: true, ao: 0.5, bloom: true, samples: 4, maxDpr: 1.5, dust: true },
-  ultra: { label: 'Ultra', post: true, ao: 1, bloom: true, samples: 8, maxDpr: 2, dust: true },
+  low: { label: 'Bas', post: false, ao: 0, bloom: false, samples: 0, maxDpr: 0.75, dust: false, shadows: 0, shadowEvery: 1, avatarShadows: false, decor: 'low' },
+  medium: { label: 'Moyen', post: false, ao: 0, bloom: false, samples: 0, maxDpr: 1, dust: true, shadows: 1024, shadowEvery: 2, avatarShadows: false, decor: 'medium' },
+  high: { label: 'Élevé', post: true, ao: 0, bloom: true, samples: 4, maxDpr: 1, dust: true, shadows: 2048, shadowEvery: 1, avatarShadows: true, decor: 'high' },
+  ultra: { label: 'Ultra', post: true, ao: 0.5, bloom: true, samples: 4, maxDpr: 1.5, dust: true, shadows: 4096, shadowEvery: 1, avatarShadows: true, decor: 'high' },
 };
+export const GFX_LEVELS = ['low', 'medium', 'high', 'ultra'];
 
 // Étalonnage final : contraste, saturation, teinte chaude, vignette, léger grain
 const GradeShader = {
@@ -103,6 +106,10 @@ export class Pipeline {
   render(showVm, dt) {
     updateDust(this.dust, this.camera, dt);
     const r = this.renderer;
+    // ombres recalculées moins souvent sur les qualités basses
+    this.frame = (this.frame || 0) + 1;
+    r.shadowMap.autoUpdate = false;
+    r.shadowMap.needsUpdate = this.frame % (this.preset.shadowEvery || 1) === 0;
     if (!this.composer) {
       r.autoClear = false;
       r.clear();

@@ -11,7 +11,14 @@ import { SKINS, itemFullName } from '/shared/skins.js';
 import { buildWorld, disposeWorld } from './world.js';
 import { buildWeapon, buildArms, buildAvatar, poseAvatar } from './models.js';
 import { Effects } from './effects.js';
-import { Pipeline } from './gfx.js';
+import { Pipeline, GFX_PRESETS, GFX_LEVELS } from './gfx.js';
+
+// ── Qualité graphique « Auto » : s'adapte aux FPS réels ────────────────────
+const AUTO_KEY = 'xebfps_autolevel';
+let autoLevel = (() => { try { const v = localStorage.getItem(AUTO_KEY); return GFX_LEVELS.includes(v) ? v : 'medium'; } catch { return 'medium'; } })();
+let autoCeiling = 'high';
+function gfxLevel() { const g = P.profile().settings.gfx; return g === 'auto' || !GFX_PRESETS[g] ? autoLevel : g; }
+function worldSettings() { return { ...P.profile().settings, gfx: gfxLevel() }; }
 import * as A from './audio.js';
 import { hud, drawRadar, renderBoard, esc } from './hud.js';
 import { send, on, serverNow, dispatch } from './net.js';
@@ -92,7 +99,7 @@ export function initGame(canvas, onExit) {
   S.effects = new Effects(S.scene);
   S.effects.group.userData.noAO = true;
   S.pipeline = new Pipeline(r, S.scene, S.camera, S.vmScene, S.vmCamera);
-  S.pipeline.setQuality(settings().gfx, window.innerWidth, window.innerHeight);
+  S.pipeline.setQuality(gfxLevel(), window.innerWidth, window.innerHeight);
   resize();
   window.addEventListener('resize', resize);
   setupInput();
@@ -116,10 +123,7 @@ export function applySettings() {
   S.renderer.shadowMap.enabled = !!st.shadows;
   S.vmCamera.fov = st.viewmodelFov;
   S.vmCamera.updateProjectionMatrix();
-  if (S.pipeline && S.pipeline.name !== st.gfx) {
-    S.pipeline.setQuality(st.gfx, window.innerWidth, window.innerHeight);
-    if (S.map) loadMap(S.mapId); // taille des ombres selon la qualité
-  }
+  if (S.pipeline && S.pipeline.name !== gfxLevel()) applyLevel();
   resize();
   hud.fps(0);
 }
@@ -179,7 +183,7 @@ function loadMap(mapId) {
   if (S.world) disposeWorld(S.scene, S.world);
   S.mapId = mapId;
   S.map = MAPS[mapId];
-  S.world = buildWorld(S.scene, S.map, settings());
+  S.world = buildWorld(S.scene, S.map, worldSettings());
   S.scene.environment = S.env;
   S.scene.environmentIntensity = 0.12;
   // l'arme en main est éclairée comme la carte
@@ -211,6 +215,7 @@ function addRemote(info) {
 function buildAvatarFor(p) {
   removeAvatar(p);
   p.avatar = buildAvatar(outfitFor(p));
+  if (!GFX_PRESETS[gfxLevel()].avatarShadows) p.avatar.traverse((o) => { o.castShadow = false; });
   p.avatar.visible = false;
   S.scene.add(p.avatar);
   p.tag = makeNameTag(p.name, S.cfg.teams ? TEAM_COLORS[p.team] || '#fff' : '#fff');
@@ -248,7 +253,7 @@ function remoteWeapon(p, wid) {
   p.weaponKey = key;
   const anchor = p.avatar.userData.weaponAnchor;
   if (p.weapon) anchor.remove(p.weapon);
-  p.weapon = buildWeapon(wid, sk || null, { statTrak: false, shadows: true, detail: false });
+  p.weapon = buildWeapon(wid, sk || null, { statTrak: false, shadows: GFX_PRESETS[gfxLevel()].avatarShadows, detail: false });
   anchor.add(p.weapon);
 }
 
@@ -859,11 +864,51 @@ function updateHud(dt) {
 // ════════════════════════════════════════════════════════════════════════
 // Boucle
 // ════════════════════════════════════════════════════════════════════════
+// applique le niveau de qualité effectif (reconstruit la carte pour les ombres)
+function applyLevel() {
+  const lvl = gfxLevel();
+  S.pipeline.setQuality(lvl, window.innerWidth, window.innerHeight);
+  if (S.map) loadMap(S.mapId);
+  for (const p of S.players.values()) { buildAvatarFor(p); }
+  fpsWin.t0 = 0; // on remesure après le changement
+}
+
+// mesure des FPS réels pendant la partie et ajustement automatique
+const fpsWin = { t0: 0, n: 0, good: 0 };
+function autoQuality(now) {
+  const playing = S.active && S.locked && S.ui === null && !document.hidden;
+  if (!playing) { fpsWin.t0 = 0; return; }
+  if (!fpsWin.t0) { fpsWin.t0 = now; fpsWin.n = 0; return; }
+  fpsWin.n++;
+  const el = now - fpsWin.t0;
+  if (el < 2500) return;
+  const fps = fpsWin.n * 1000 / el;
+  fpsWin.t0 = now; fpsWin.n = 0;
+  if (P.profile().settings.gfx !== 'auto') return;
+  const i = GFX_LEVELS.indexOf(autoLevel);
+  if (fps < 42 && i > 0) {
+    autoLevel = GFX_LEVELS[i - 1];
+    autoCeiling = autoLevel;
+    fpsWin.good = 0;
+    try { localStorage.setItem(AUTO_KEY, autoLevel); } catch { /* ignore */ }
+    applyLevel();
+    hud.center('', `Qualité graphique réduite automatiquement : ${GFX_PRESETS[autoLevel].label} (${Math.round(fps)} FPS)`, 2500);
+  } else if (fps > 95 && GFX_LEVELS.indexOf(autoCeiling) > i) {
+    if (++fpsWin.good >= 3) {
+      autoLevel = GFX_LEVELS[i + 1];
+      fpsWin.good = 0;
+      try { localStorage.setItem(AUTO_KEY, autoLevel); } catch { /* ignore */ }
+      applyLevel();
+    }
+  } else fpsWin.good = 0;
+}
+
 function loop(t) {
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (t - (S.last || t)) / 1000);
   S.last = t;
   if (!S.active || !S.map) return;
+  autoQuality(t);
   const tj = performance.now();
   updateMovement(dt);
   updateWeapon(dt);
