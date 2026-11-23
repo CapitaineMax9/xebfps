@@ -1,7 +1,48 @@
 // Construction visuelle de la carte (meshes, textures, ciel, lumières).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 import { mulberry32 } from './skinTex.js';
+
+// Ambiance de chaque carte : position du soleil, atmosphère, brouillard
+const SKY = {
+  oasis: { elev: 42, az: 120, turbidity: 4, rayleigh: 1.0, mie: 0.004, sun: '#fff0d8', sunI: 3.4, skyLight: '#9cc4ff', ground: '#b89a6a', hemi: 0.42, fog: '#d8d0bc', fogD: 0.0055, clouds: '#ffffff', cloudN: 22 },
+  docks: { elev: 26, az: 215, turbidity: 9, rayleigh: 2.0, mie: 0.008, sun: '#ffd9b0', sunI: 3.0, skyLight: '#9ab0cc', ground: '#8a8478', hemi: 0.5, fog: '#a8b0b8', fogD: 0.0105, clouds: '#e8e4e0', cloudN: 34 },
+  duel: { elev: 9, az: 255, turbidity: 8, rayleigh: 3.0, mie: 0.01, sun: '#ffb070', sunI: 3.4, skyLight: '#a8a8c0', ground: '#b08a68', hemi: 0.45, fog: '#e0a888', fogD: 0.0075, clouds: '#ffc8a0', cloudN: 26 },
+};
+
+// Nuages : sprites doux générés une fois
+let cloudTex = null;
+function makeClouds(sunDir, sk) {
+  if (!cloudTex) {
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 128;
+    const ctx = c.getContext('2d');
+    const r = mulberry32(42);
+    for (let i = 0; i < 26; i++) {
+      const x = 40 + r() * 176, y = 50 + r() * 40, rad = 18 + r() * 34;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+      g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 128);
+    }
+    cloudTex = new THREE.CanvasTexture(c);
+    cloudTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const g = new THREE.Group();
+  g.userData.noAO = true;
+  const r = mulberry32(7);
+  for (let i = 0; i < sk.cloudN; i++) {
+    const a = r() * Math.PI * 2, d = 230 + r() * 180;
+    const mat = new THREE.SpriteMaterial({ map: cloudTex, color: new THREE.Color(sk.clouds), transparent: true, opacity: 0.55 + r() * 0.35, depthWrite: false, fog: false });
+    const s = new THREE.Sprite(mat);
+    s.position.set(Math.cos(a) * d, 70 + r() * 90, Math.sin(a) * d);
+    const w = 90 + r() * 140;
+    s.scale.set(w, w * (0.3 + r() * 0.2), 1);
+    s.renderOrder = -1;
+    g.add(s);
+  }
+  return g;
+}
 
 function canvasTex(size, draw, repeatMeters = 2) {
   const c = document.createElement('canvas');
@@ -152,37 +193,49 @@ export function buildWorld(scene, map, settings) {
     group.add(mesh);
   }
 
-  // Ciel (dégradé)
-  const skyGeo = new THREE.SphereGeometry(400, 24, 12);
-  const skyMat = new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(map.theme.sky[0]) }, bottom: { value: new THREE.Color(map.theme.sky[1]) } },
-    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying vec3 vP; void main(){ float h = clamp(vP.y*1.6+0.15,0.0,1.0); gl_FragColor = vec4(mix(bottom, top, h),1.0);\n#include <colorspace_fragment>\n}',
-  });
-  const sky = new THREE.Mesh(skyGeo, skyMat);
+  // ── Ciel atmosphérique + soleil ────────────────────────────────────────
+  const sk = SKY[map.id] || SKY.oasis;
+  const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - sk.elev), THREE.MathUtils.degToRad(sk.az));
+  const sky = new Sky();
+  sky.scale.setScalar(1000);
+  const u = sky.material.uniforms;
+  u.turbidity.value = sk.turbidity; u.rayleigh.value = sk.rayleigh;
+  u.mieCoefficient.value = sk.mie; u.mieDirectionalG.value = 0.85;
+  u.sunPosition.value.copy(sunDir);
+  // le ciel est trop lumineux pour notre exposition : on le tempère
+  sky.material.fragmentShader = sky.material.fragmentShader.replace('gl_FragColor = vec4( retColor, 1.0 );', 'gl_FragColor = vec4( retColor * 0.42, 1.0 );');
   sky.name = 'sky';
+  sky.userData.noAO = true;
   sky.frustumCulled = false;
   group.add(sky);
+  group.add(makeClouds(sunDir, sk));
 
   // Lumières
-  const hemi = new THREE.HemisphereLight(new THREE.Color(map.theme.sky[0]), new THREE.Color('#8a7a60'), map.theme.ambient * 1.1);
+  const hemi = new THREE.HemisphereLight(new THREE.Color(sk.skyLight), new THREE.Color(sk.ground), sk.hemi);
   group.add(hemi);
-  const sun = new THREE.DirectionalLight(new THREE.Color(map.theme.sun), 2.4);
+  const sun = new THREE.DirectionalLight(new THREE.Color(sk.sun), sk.sunI);
   const half = Math.max(map.size[0], map.size[1]) / 2 + 4;
-  sun.position.set(half * 0.6, 60, half * 0.35);
+  sun.position.copy(sunDir).multiplyScalar(130);
   sun.target.position.set(0, 0, 0);
   sun.castShadow = !!settings.shadows;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -half; sun.shadow.camera.right = half;
-  sun.shadow.camera.top = half; sun.shadow.camera.bottom = -half;
-  sun.shadow.camera.near = 10; sun.shadow.camera.far = 140;
-  sun.shadow.bias = -0.0008;
-  sun.shadow.normalBias = 0.03;
+  const ss = settings.gfx === 'ultra' ? 4096 : settings.gfx === 'low' ? 1024 : 2048;
+  sun.shadow.mapSize.set(ss, ss);
+  const ext = half * 1.45;
+  sun.shadow.camera.left = -ext; sun.shadow.camera.right = ext;
+  sun.shadow.camera.top = ext; sun.shadow.camera.bottom = -ext;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 280;
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.04;
+  sun.shadow.radius = 2;
   group.add(sun, sun.target);
   group.userData.sun = sun;
+  group.userData.sunDir = sunDir;
+  // léger rebond de lumière depuis le sol, à l'opposé du soleil
+  const bounce = new THREE.DirectionalLight(new THREE.Color(sk.ground), sk.hemi * 0.35);
+  bounce.position.set(-sunDir.x, 0.2, -sunDir.z).multiplyScalar(50);
+  group.add(bounce);
 
-  scene.fog = new THREE.Fog(new THREE.Color(map.theme.fog), map.theme.fogNear, map.theme.fogFar);
+  scene.fog = new THREE.FogExp2(new THREE.Color(sk.fog), sk.fogD);
   scene.add(group);
   return group;
 }

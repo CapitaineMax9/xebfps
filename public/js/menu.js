@@ -8,6 +8,7 @@ import { request } from './net.js';
 import { thumbnail, Viewer } from './preview.js';
 import * as A from './audio.js';
 import { esc } from './hud.js';
+import { GFX_PRESETS } from './gfx.js';
 
 const $ = (id) => document.getElementById(id);
 let cb = {};
@@ -510,10 +511,14 @@ function renderSettings() {
     ['crossDynamic', 'Viseur dynamique (écart selon la précision)', 'checkbox'],
     ['bob', 'Balancement de l\'arme', 'checkbox'],
     ['shadows', 'Ombres', 'checkbox'],
-    ['quality', 'Résolution de rendu', 'range', 0.5, 1, 0.05],
     ['showFps', 'Afficher les FPS', 'checkbox'],
   ];
   f.innerHTML = '<h3>Paramètres</h3>';
+  const gq = document.createElement('div');
+  gq.className = 'set-row';
+  gq.innerHTML = `<label for="set-gfx">Qualité graphique</label><select id="set-gfx">${Object.entries(GFX_PRESETS).map(([k, v]) => `<option value="${k}" ${st.gfx === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select><span></span>`;
+  gq.querySelector('select').onchange = (e) => { st.gfx = e.target.value; P.save(); cb.onSettings(); };
+  f.appendChild(gq);
   for (const [key, label, type, min, max, stp] of rows) {
     const row = document.createElement('div');
     row.className = 'set-row';

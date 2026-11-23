@@ -11,6 +11,7 @@ import { SKINS, itemFullName } from '/shared/skins.js';
 import { buildWorld, disposeWorld } from './world.js';
 import { buildWeapon, buildArms, buildAvatar } from './models.js';
 import { Effects } from './effects.js';
+import { Pipeline } from './gfx.js';
 import * as A from './audio.js';
 import { hud, drawRadar, renderBoard, esc } from './hud.js';
 import { send, on, serverNow, dispatch } from './net.js';
@@ -68,7 +69,6 @@ export function initGame(canvas, onExit) {
   r.toneMappingExposure = 1.05;
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
-  r.autoClear = false;
   S.renderer = r;
   S.scene = new THREE.Scene();
   S.camera = new THREE.PerspectiveCamera(vfovFrom(90), 16 / 9, 0.05, 600);
@@ -89,6 +89,9 @@ export function initGame(canvas, onExit) {
   S.vmLight = vh;
 
   S.effects = new Effects(S.scene);
+  S.effects.group.userData.noAO = true;
+  S.pipeline = new Pipeline(r, S.scene, S.camera, S.vmScene, S.vmCamera);
+  S.pipeline.setQuality(settings().gfx, window.innerWidth, window.innerHeight);
   resize();
   window.addEventListener('resize', resize);
   setupInput();
@@ -98,9 +101,7 @@ export function initGame(canvas, onExit) {
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
-  const q = settings().quality;
-  S.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q >= 1 ? 1.5 : 1) * (q < 1 ? q : 1));
-  S.renderer.setSize(w, h, false);
+  if (S.pipeline) S.pipeline.setSize(w, h);
   S.camera.aspect = w / h;
   S.camera.updateProjectionMatrix();
   S.vmCamera.aspect = w / h;
@@ -114,6 +115,10 @@ export function applySettings() {
   S.renderer.shadowMap.enabled = !!st.shadows;
   S.vmCamera.fov = st.viewmodelFov;
   S.vmCamera.updateProjectionMatrix();
+  if (S.pipeline && S.pipeline.name !== st.gfx) {
+    S.pipeline.setQuality(st.gfx, window.innerWidth, window.innerHeight);
+    if (S.map) loadMap(S.mapId); // taille des ombres selon la qualité
+  }
   resize();
   hud.fps(0);
 }
@@ -175,7 +180,7 @@ function loadMap(mapId) {
   S.map = MAPS[mapId];
   S.world = buildWorld(S.scene, S.map, settings());
   S.scene.environment = S.env;
-  S.scene.environmentIntensity = 0.35;
+  S.scene.environmentIntensity = 0.12;
   S.effects.clear();
 }
 
@@ -868,12 +873,7 @@ function loop(t) {
   updateHud(dt);
   const tr = performance.now();
   const r = S.renderer;
-  r.clear();
-  r.render(S.scene, S.camera);
-  if (S.vm && S.vm.root.visible) {
-    r.clearDepth();
-    r.render(S.vmScene, S.vmCamera);
-  }
+  S.pipeline.render(!!(S.vm && S.vm.root.visible), dt);
   if (S.perf) { S.perf.js += tr - tj; S.perf.render += performance.now() - tr; S.perf.n++; S.perf.calls = r.info.render.calls; }
 }
 
