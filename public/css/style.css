@@ -118,6 +118,8 @@ input:disabled { opacity: .6; }
 .case-box { width: 190px; height: 110px; border-radius: 10px; position: relative; box-shadow: 0 10px 30px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 255, 255, .25); }
 .case-box::before { content: ''; position: absolute; left: 0; right: 0; top: 42%; height: 12px; background: rgba(0, 0, 0, .35); }
 .case-box::after { content: '◈'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 40px; color: rgba(255, 255, 255, .85); text-shadow: 0 2px 6px rgba(0, 0, 0, .5); }
+.case-card { position: relative; }
+.case-tag { position: absolute; top: 12px; right: 12px; background: var(--acc); color: #1a1004; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px; letter-spacing: 1px; }
 .case-card h4 { margin: 10px 0 4px; font-family: var(--font2); font-size: 22px; }
 .case-card .price { color: var(--acc); font-weight: 700; font-family: var(--font2); font-size: 20px; }
 #case-detail .cd-head { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }

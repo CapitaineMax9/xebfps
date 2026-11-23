@@ -464,6 +464,321 @@ P.gorgon = (ctx, c, rnd) => {
   }
 };
 
+// ── Motifs supplémentaires (v2) ────────────────────────────────────────────
+const poly = (ctx, pts) => { ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.closePath(); };
+
+P.tigertooth = (ctx, c, rnd) => {
+  const g = ctx.createLinearGradient(0, 0, SIZE, SIZE);
+  g.addColorStop(0, c[0]); g.addColorStop(0.5, c[2]); g.addColorStop(1, c[0]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillStyle = c[1];
+  for (let i = -12; i < 40; i++) {
+    const x = i * 22 + rnd() * 8, w = 4 + rnd() * 7;
+    for (let k = 0; k < 6; k++) {
+      const y = rnd() * SIZE, len = 40 + rnd() * 90;
+      poly(ctx, [[x + y * 0.6, y], [x + y * 0.6 + w, y + 6], [x + (y + len) * 0.6 + w * 0.2, y + len]]);
+      ctx.fill();
+    }
+  }
+  const h = ctx.createLinearGradient(0, 0, 0, SIZE);
+  h.addColorStop(0, 'rgba(255,255,255,0.25)'); h.addColorStop(0.5, 'rgba(255,255,255,0)'); h.addColorStop(1, 'rgba(255,255,255,0.15)');
+  ctx.fillStyle = h; ctx.fillRect(0, 0, SIZE, SIZE);
+};
+
+P.web = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.strokeStyle = c[1]; ctx.lineWidth = 3;
+  for (let w = 0; w < 4; w++) {
+    const cx = rnd() * SIZE, cy = rnd() * SIZE, R = 160 + rnd() * 140, spokes = 12;
+    const ang = [];
+    for (let i = 0; i < spokes; i++) ang.push(i / spokes * Math.PI * 2 + rnd() * 0.2);
+    for (const a of ang) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); ctx.stroke(); }
+    for (let r = 18; r < R; r += 18 + rnd() * 10) {
+      ctx.beginPath();
+      ang.forEach((a, i) => {
+        const b = ang[(i + 1) % spokes] + (i === spokes - 1 ? Math.PI * 2 : 0);
+        const x1 = cx + Math.cos(a) * r, y1 = cy + Math.sin(a) * r, x2 = cx + Math.cos(b) * r, y2 = cy + Math.sin(b) * r;
+        const m = (a + b) / 2, mr = r * 0.82;
+        if (i === 0) ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(cx + Math.cos(m) * mr, cy + Math.sin(m) * mr, x2, y2);
+      });
+      ctx.stroke();
+    }
+  }
+  if (c[2]) { ctx.globalAlpha = 0.25; ctx.fillStyle = c[2]; ctx.fillRect(0, 0, SIZE, SIZE); ctx.globalAlpha = 1; }
+};
+
+P.damascus = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const ns = [makeNoise(rnd, 4), makeNoise(rnd, 8), makeNoise(rnd, 16)];
+  pixelPass(ctx, 256, (u, v) => {
+    const n = fbm(ns, u * 4, v * 4, 3);
+    const t = (Math.sin((v + n * 0.35 + Math.sin(u * 6.28) * 0.05) * 90) + 1) / 2;
+    const col = mix(cols[0], cols[1], Math.pow(t, 2));
+    return cols[2] ? mix(col, cols[2], Math.max(0, n - 0.6) * 1.2) : col;
+  });
+};
+
+P.topo = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const ns = [makeNoise(rnd, 3), makeNoise(rnd, 6), makeNoise(rnd, 12)];
+  pixelPass(ctx, 256, (u, v) => {
+    const h = fbm(ns, u * 3, v * 3, 3);
+    const f = (h * 14) % 1;
+    const line = f < 0.09 || f > 0.97;
+    const base = mix(cols[0], cols[2] || cols[0], h);
+    return line ? cols[1] : base;
+  });
+};
+
+P.tribal = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  const band = 64;
+  for (let row = 0; row < SIZE / band; row++) {
+    const y = row * band, kind = row % 3;
+    const col = c[1 + (row % (c.length - 1))];
+    ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 6;
+    if (kind === 0) {
+      ctx.beginPath();
+      for (let x = 0; x <= SIZE; x += 32) ctx.lineTo(x, y + ((x / 32) % 2 ? 10 : band - 10));
+      ctx.stroke();
+    } else if (kind === 1) {
+      for (let x = 0; x < SIZE; x += 64) {
+        poly(ctx, [[x + 32, y + 6], [x + 58, y + 32], [x + 32, y + 58], [x + 6, y + 32]]); ctx.fill();
+        ctx.fillStyle = c[0]; poly(ctx, [[x + 32, y + 20], [x + 44, y + 32], [x + 32, y + 44], [x + 20, y + 32]]); ctx.fill(); ctx.fillStyle = col;
+      }
+    } else {
+      for (let x = 0; x < SIZE; x += 32) { ctx.fillRect(x, y + 8, 16, 16); ctx.fillRect(x + 16, y + 40, 16, 16); }
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, y, SIZE, 3);
+  }
+  void rnd;
+};
+
+P.kaleido = (ctx, c, rnd) => {
+  const tile = document.createElement('canvas');
+  tile.width = tile.height = SIZE;
+  const t = tile.getContext('2d');
+  t.fillStyle = c[0]; t.fillRect(0, 0, SIZE, SIZE);
+  const shapes = [];
+  for (let i = 0; i < 22; i++) shapes.push({ r: 20 + rnd() * 220, a: rnd() * Math.PI / 8, s: 8 + rnd() * 40, col: c[1 + Math.floor(rnd() * (c.length - 1))], k: Math.floor(rnd() * 3) });
+  const segs = 16;
+  for (let quad = 0; quad < 4; quad++) {
+    const cx = (quad % 2) * SIZE, cy = Math.floor(quad / 2) * SIZE;
+    for (let sgm = 0; sgm < segs; sgm++) {
+      t.save(); t.translate(cx, cy); t.rotate(sgm * Math.PI * 2 / segs); if (sgm % 2) t.scale(1, -1);
+      for (const s of shapes) {
+        t.fillStyle = s.col; t.globalAlpha = 0.85;
+        const x = Math.cos(s.a) * s.r, y = Math.sin(s.a) * s.r;
+        t.beginPath();
+        if (s.k === 0) t.arc(x, y, s.s / 2, 0, 7);
+        else if (s.k === 1) { t.moveTo(x, y - s.s / 2); t.lineTo(x + s.s / 2, y + s.s / 2); t.lineTo(x - s.s / 2, y + s.s / 2); }
+        else t.rect(x - s.s / 2, y - s.s / 4, s.s, s.s / 2);
+        t.fill();
+      }
+      t.restore();
+    }
+  }
+  ctx.drawImage(tile, 0, 0);
+};
+
+P.tiedye = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb).concat([hexToRgb(c[0])]);
+  const ns = [makeNoise(rnd, 4), makeNoise(rnd, 8)];
+  pixelPass(ctx, 256, (u, v) => {
+    const dx = u - 0.5, dy = v - 0.5;
+    const a = Math.atan2(dy, dx) / (Math.PI * 2);
+    const r = Math.hypot(dx, dy);
+    const t = (((a * 3 + r * 5 + fbm(ns, u * 4, v * 4, 2) * 0.6) % 1) + 1) % 1;
+    return palette(cols, t);
+  });
+};
+
+const SPRITES = [
+  ['00111100', '01111110', '11011011', '11111111', '11111111', '01100110', '01100110', '00000000'],
+  ['01100110', '11111111', '11111111', '11111111', '01111110', '00111100', '00011000', '00000000'],
+  ['00011000', '00011000', '11111111', '01111110', '00111100', '01100110', '11000011', '00000000'],
+  ['00100100', '00011000', '00111100', '01011010', '11111111', '10111101', '10100101', '00011000'],
+];
+P.pixelart = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  const px = 6;
+  for (let gy = 0; gy < SIZE; gy += 64) for (let gx = 0; gx < SIZE; gx += 64) {
+    const sp = SPRITES[Math.floor(rnd() * SPRITES.length)];
+    ctx.fillStyle = c[1 + Math.floor(rnd() * (c.length - 1))];
+    const ox = gx + 8 + ((gy / 64) % 2) * 16, oy = gy + 8;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (sp[y][x] === '1') ctx.fillRect(ox + x * px, oy + y * px, px, px);
+  }
+};
+
+P.graffiti = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  for (let i = 0; i < 600; i++) { ctx.fillStyle = `rgba(0,0,0,${rnd() * 0.15})`; ctx.fillRect(rnd() * SIZE, rnd() * SIZE, 3, 3); }
+  const words = ['XEB', 'GG', 'AWP', 'EZ', 'ACE', 'HS'];
+  for (let i = 0; i < 9; i++) {
+    const w = words[Math.floor(rnd() * words.length)];
+    const size = 60 + rnd() * 70;
+    ctx.save();
+    ctx.translate(rnd() * SIZE, rnd() * SIZE); ctx.rotate((rnd() - 0.5) * 0.6);
+    ctx.font = `900 ${size}px Impact, Arial Black, sans-serif`;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.18; ctx.strokeStyle = '#111'; ctx.strokeText(w, 0, 0);
+    ctx.fillStyle = c[1 + (i % (c.length - 1))]; ctx.fillText(w, 0, 0);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(size * 0.1, -size * 0.6, size * 0.15, size * 0.08);
+    ctx.restore();
+  }
+  for (let i = 0; i < 18; i++) {
+    ctx.fillStyle = c[1 + Math.floor(rnd() * (c.length - 1))];
+    const x = rnd() * SIZE, y = rnd() * SIZE;
+    ctx.fillRect(x, y, 3, 20 + rnd() * 60);
+    ctx.beginPath(); ctx.arc(x + 1.5, y, 4, 0, 7); ctx.fill();
+  }
+};
+
+P.woodgrain = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const ns = [makeNoise(rnd, 4), makeNoise(rnd, 8), makeNoise(rnd, 32)];
+  pixelPass(ctx, 256, (u, v) => {
+    const n = fbm(ns, u * 2, v * 6, 3);
+    const ring = (Math.sin((u * 3 + n * 4) * 18) + 1) / 2;
+    const fine = ns[2](u * 64, v * 4) * 0.25;
+    return mix(cols[0], cols[1], Math.pow(ring, 3) * 0.8 + fine);
+  });
+};
+
+P.goldleaf = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  for (let i = 0; i < 160; i++) {
+    const x = rnd() * SIZE, y = rnd() * SIZE, s = 10 + rnd() * 40;
+    const g = ctx.createLinearGradient(x - s, y - s, x + s, y + s);
+    g.addColorStop(0, c[1]); g.addColorStop(0.5, c[2] || c[1]); g.addColorStop(1, c[1]);
+    ctx.fillStyle = g;
+    const n = 5 + Math.floor(rnd() * 3), pts = [];
+    for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + rnd() * 0.5; const r = s * (0.4 + rnd() * 0.6); pts.push([x + Math.cos(a) * r, y + Math.sin(a) * r]); }
+    poly(ctx, pts); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+  for (let i = 0; i < 40; i++) { ctx.beginPath(); let x = rnd() * SIZE, y = rnd() * SIZE; ctx.moveTo(x, y); for (let k = 0; k < 5; k++) ctx.lineTo(x += (rnd() - 0.5) * 40, y += (rnd() - 0.5) * 40); ctx.stroke(); }
+};
+
+P.sunset = (ctx, c, rnd) => {
+  const g = ctx.createLinearGradient(0, 0, 0, SIZE);
+  g.addColorStop(0, c[0]); g.addColorStop(0.45, c[1]); g.addColorStop(0.62, c[2]); g.addColorStop(0.63, c[0]); g.addColorStop(1, c[3]);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.fillStyle = c[2]; ctx.globalAlpha = 0.9;
+  ctx.beginPath(); ctx.arc(SIZE * 0.5, SIZE * 0.62, SIZE * 0.16, Math.PI, 0); ctx.fill(); ctx.globalAlpha = 1;
+  for (let i = 0; i < 10; i++) { ctx.fillStyle = `rgba(255,255,255,${0.15 + rnd() * 0.2})`; ctx.fillRect(SIZE * (0.3 + rnd() * 0.4), SIZE * (0.65 + i * 0.03), SIZE * (0.1 + rnd() * 0.2), 3); }
+  // palmiers en silhouette
+  ctx.fillStyle = c[3]; ctx.strokeStyle = c[3];
+  for (const px of [0.12, 0.85, 0.7]) {
+    const x = SIZE * px, base = SIZE * 0.66, top = SIZE * (0.25 + rnd() * 0.1);
+    ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(x, base); ctx.quadraticCurveTo(x + 30, (base + top) / 2, x + 15, top); ctx.stroke();
+    for (let k = 0; k < 7; k++) {
+      const a = -Math.PI / 2 + (k - 3) * 0.5;
+      ctx.beginPath(); ctx.moveTo(x + 15, top);
+      ctx.quadraticCurveTo(x + 15 + Math.cos(a) * 60, top + Math.sin(a) * 30 - 20, x + 15 + Math.cos(a) * 110, top + 50 + Math.abs(k - 3) * 10);
+      ctx.lineWidth = 7; ctx.stroke();
+    }
+  }
+};
+
+P.blueprint = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.strokeStyle = c[1]; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
+  for (let i = 0; i <= SIZE; i += 16) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, SIZE); ctx.moveTo(0, i); ctx.lineTo(SIZE, i); ctx.stroke(); }
+  ctx.globalAlpha = 1; ctx.strokeStyle = c[2]; ctx.lineWidth = 2.5; ctx.fillStyle = c[2];
+  for (let i = 0; i < 7; i++) {
+    const x = rnd() * SIZE, y = rnd() * SIZE, r = 20 + rnd() * 60;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - r - 10, y); ctx.lineTo(x + r + 10, y); ctx.moveTo(x, y - r - 10); ctx.lineTo(x, y + r + 10); ctx.stroke();
+    ctx.strokeRect(rnd() * SIZE, rnd() * SIZE, 40 + rnd() * 120, 20 + rnd() * 60);
+  }
+  ctx.font = '14px monospace';
+  for (let i = 0; i < 10; i++) ctx.fillText(`Ø ${(rnd() * 90 + 5).toFixed(1)} mm`, rnd() * SIZE, rnd() * SIZE);
+};
+
+P.koi = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.strokeStyle = c[1]; ctx.globalAlpha = 0.35; ctx.lineWidth = 2;
+  for (let i = 0; i < 14; i++) { ctx.beginPath(); ctx.ellipse(rnd() * SIZE, rnd() * SIZE, 20 + rnd() * 60, 8 + rnd() * 20, 0, 0, 7); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 7; i++) {
+    const x = rnd() * SIZE, y = rnd() * SIZE, a = rnd() * Math.PI * 2, L = 70 + rnd() * 40;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.fillStyle = c[2];
+    ctx.beginPath(); ctx.ellipse(0, 0, L / 2, L / 6, 0, 0, 7); ctx.fill();
+    poly(ctx, [[-L / 2 + 4, 0], [-L / 2 - 22, -16], [-L / 2 - 14, 0], [-L / 2 - 22, 16]]); ctx.fill();
+    poly(ctx, [[0, -L / 7], [-10, -L / 3.5], [10, -L / 7]]); ctx.fill();
+    ctx.fillStyle = c[3] || '#fff';
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(-L / 4 + k * L / 4 + rnd() * 6, (rnd() - 0.5) * L / 10, L / 10, L / 14, 0, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+};
+
+P.checker = (ctx, c) => {
+  const s = 32;
+  for (let y = 0; y < SIZE; y += s) for (let x = 0; x < SIZE; x += s) { ctx.fillStyle = ((x + y) / s) % 2 ? c[0] : c[1]; ctx.fillRect(x, y, s, s); }
+  if (c[2]) {
+    ctx.fillStyle = c[2];
+    poly(ctx, [[0, SIZE * 0.55], [SIZE, SIZE * 0.25], [SIZE, SIZE * 0.4], [0, SIZE * 0.7]]); ctx.fill();
+    ctx.fillStyle = c[1];
+    poly(ctx, [[0, SIZE * 0.72], [SIZE, SIZE * 0.42], [SIZE, SIZE * 0.46], [0, SIZE * 0.76]]); ctx.fill();
+  }
+};
+
+P.leopard = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * SIZE, y = rnd() * SIZE, r = 10 + rnd() * 14;
+    ctx.fillStyle = c[2] || c[0];
+    ctx.beginPath(); ctx.ellipse(x, y, r * 0.7, r * 0.55, rnd() * 3, 0, 7); ctx.fill();
+    ctx.fillStyle = c[1];
+    const n = 3 + Math.floor(rnd() * 3);
+    for (let k = 0; k < n; k++) {
+      const a = k / n * Math.PI * 2 + rnd();
+      ctx.beginPath(); ctx.ellipse(x + Math.cos(a) * r, y + Math.sin(a) * r, 4 + rnd() * 5, 3 + rnd() * 3, a, 0, 7); ctx.fill();
+    }
+  }
+};
+
+P.dragonart = (ctx, c, rnd) => {
+  // fond ivoire avec nuages stylisés
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.strokeStyle = c[3]; ctx.lineWidth = 3; ctx.globalAlpha = 0.5;
+  for (let i = 0; i < 14; i++) {
+    const x = rnd() * SIZE, y = rnd() * SIZE, r = 14 + rnd() * 20;
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x + k * r * 0.9, y, r - k * 2, Math.PI, 0); ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  // corps serpentin du dragon
+  const pts = [];
+  for (let i = 0; i <= 60; i++) { const t = i / 60; pts.push([t * SIZE * 1.1 - 20, SIZE * 0.5 + Math.sin(t * Math.PI * 3 + 0.5) * SIZE * 0.25]); }
+  const stroke = (col, w) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]))); ctx.stroke(); };
+  stroke(c[2], 64); stroke(c[1], 52);
+  // écailles
+  for (let i = 1; i < pts.length - 1; i++) {
+    const [x, y] = pts[i]; const [nx, ny] = pts[i + 1];
+    const a = Math.atan2(ny - y, nx - x);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    ctx.fillStyle = c[2];
+    for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.arc(0, k * 14, 7, -Math.PI / 2, Math.PI / 2); ctx.fill(); }
+    // épines dorsales
+    ctx.fillStyle = c[4] || c[2];
+    poly(ctx, [[-6, -26], [0, -44], [6, -26]]); ctx.fill();
+    ctx.restore();
+  }
+  // tête
+  const [hx, hy] = pts[pts.length - 8];
+  ctx.fillStyle = c[1]; ctx.strokeStyle = c[2]; ctx.lineWidth = 6;
+  poly(ctx, [[hx - 30, hy - 30], [hx + 50, hy - 10], [hx + 60, hy + 12], [hx - 20, hy + 34]]); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c[4] || '#ffd23f'; ctx.beginPath(); ctx.arc(hx + 20, hy - 6, 6, 0, 7); ctx.fill();
+  poly(ctx, [[hx - 10, hy - 28], [hx - 40, hy - 70], [hx + 5, hy - 30]]); ctx.fillStyle = c[2]; ctx.fill();
+  // flammes
+  const fg = ctx.createLinearGradient(hx + 60, 0, hx + 200, 0);
+  fg.addColorStop(0, '#ffcf3f'); fg.addColorStop(1, 'rgba(255,80,20,0)');
+  ctx.fillStyle = fg; poly(ctx, [[hx + 58, hy], [hx + 220, hy - 50], [hx + 180, hy + 10], [hx + 230, hy + 50]]); ctx.fill();
+};
+
 function shade(hex, amt) {
   const [r, g, b] = hexToRgb(hex);
   const f = (v) => Math.max(0, Math.min(255, Math.round(amt < 0 ? v * (1 + amt) : v + (255 - v) * amt)));

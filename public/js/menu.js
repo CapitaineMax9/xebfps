@@ -337,7 +337,7 @@ function renderCases() {
     el.className = 'case-card';
     const awps = c.items.filter((id) => SKINS[id].weapon === 'awp').map((id) => SKINS[id].name);
     el.innerHTML = `<div class="case-art"><div class="case-box" style="background:linear-gradient(160deg, ${c.color}, #1a1208)"></div></div>
-      <h4>${esc(c.name)}</h4><div class="price">${c.price} ◈</div><p class="hint">${c.items.length} objets · AWP : ${awps.map(esc).join(', ')}</p>`;
+      ${c.tag ? `<span class="case-tag">${esc(c.tag)}</span>` : ''}<h4>${esc(c.name)}</h4><div class="price">${c.price} ◈</div><p class="hint">${c.items.length} objets · AWP : ${awps.map(esc).join(', ')}</p>`;
     el.onclick = () => { A.playUi(); showCase(c); };
     list.appendChild(el);
   }

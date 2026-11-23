@@ -27,6 +27,7 @@ export const KNIVES = {
   karambit: { id: 'karambit', name: 'Karambit' },
   bayonet: { id: 'bayonet', name: 'Baïonnette' },
   butterfly: { id: 'butterfly', name: 'Couteau papillon' },
+  flip: { id: 'flip', name: 'Couteau pliant' },
 };
 
 // Catalogue. weapon = id d'arme, ou 'knife' avec knife = type de couteau.
@@ -86,10 +87,77 @@ add('bayo_fondu', 'knife', 'Fondu', 'gold', 'fade', ['#ffd23f', '#ff3fa4', '#7a3
 add('bayo_trempe', 'knife', 'Trempée', 'gold', 'casehard', ['#2f56b8', '#c99a2e', '#5b5f66'], { knife: 'bayonet', fin: { metal: 0.9, rough: 0.25 } });
 add('bayo_tigre', 'knife', 'Dent de Tigre', 'gold', 'stripes', ['#f0b429', '#4a2a05', '#ffe08a'], { knife: 'bayonet', fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
 
+// ── Caisse Sniper (100 % AWP) ────────────────────────────────────────────────
+add('awp_topo', 'awp', 'Topographie', 'milspec', 'topo', ['#3a4a2a', '#c8d6a0', '#7a8a4a']);
+add('awp_damier', 'awp', 'Damier', 'milspec', 'checker', ['#1a1a1a', '#e8e8e8', '#d42b2b']);
+add('awp_bois', 'awp', 'Bois Flotté', 'milspec', 'woodgrain', ['#6b4a2a', '#c49a6a']);
+add('awp_plan', 'awp', 'Plan Technique', 'milspec', 'blueprint', ['#123a7a', '#5a8adf', '#e8f0ff']);
+add('awp_koi', 'awp', 'Koï', 'restricted', 'koi', ['#0d4a5a', '#5ad0e0', '#ff7a1f', '#ffffff']);
+add('awp_tiedye', 'awp', 'Tie & Dye', 'restricted', 'tiedye', ['#ff3fa4', '#ffd23f', '#22e0ff', '#7a3cff']);
+add('awp_pixel', 'awp', 'Pixel Héros', 'restricted', 'pixelart', ['#1a1030', '#ff4f6a', '#ffd23f', '#3ff0a0']);
+add('awp_toile', 'awp', 'Toile Pourpre', 'classified', 'web', ['#6a0a12', '#0a0204', '#ff2040'], { fin: { metal: 0.4, rough: 0.35 } });
+add('awp_azteque', 'awp', 'Aztèque', 'classified', 'tribal', ['#1a1a14', '#e0a526', '#2ec4b6', '#d42b2b']);
+add('awp_couchant', 'awp', 'Soleil Couchant', 'classified', 'sunset', ['#2a0a4a', '#ff3f7a', '#ffb347', '#120418']);
+add('awp_wyrm', 'awp', 'Wyrm Royal', 'covert', 'dragonart', ['#efe2c0', '#2f7a3a', '#1a2a12', '#c9a86a', '#e0a526'], { fin: { metal: 0.3, rough: 0.4 } });
+add('awp_orfeuille', 'awp', 'Feuille d\'Or', 'covert', 'goldleaf', ['#0e0e10', '#e0b23a', '#fff0a0'], { fin: { metal: 0.85, rough: 0.2 } });
+add('awp_kaleido', 'awp', 'Kaléidoscope', 'covert', 'kaleido', ['#0a0a1a', '#ff3fa4', '#22e0ff', '#ffd23f', '#7a3cff']);
+add('flip_tigre', 'knife', 'Dent de Tigre', 'gold', 'tigertooth', ['#c98a1e', '#3a2205', '#ffe08a'], { knife: 'flip', fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
+add('flip_damas', 'knife', 'Acier Damas', 'gold', 'damascus', ['#2a2c30', '#b8bec6', '#5a6a8a'], { knife: 'flip', fin: { metal: 0.95, rough: 0.18 } });
+add('kara_toile', 'knife', 'Toile Pourpre', 'gold', 'web', ['#8a0a14', '#0a0204'], { knife: 'karambit', fin: { metal: 0.6, rough: 0.3 } });
+add('papi_kaleido', 'knife', 'Kaléidoscope', 'gold', 'kaleido', ['#0a0a1a', '#ff3fa4', '#22e0ff', '#ffd23f'], { knife: 'butterfly', fin: { metal: 0.7, rough: 0.2 } });
+
+// ── Caisse Street ────────────────────────────────────────────────────────────
+add('glock_damier', 'glock', 'Damier', 'milspec', 'checker', ['#111111', '#f0f0f0', '#ffd23f']);
+add('mp9_graffiti', 'mp9', 'Tag', 'milspec', 'graffiti', ['#8a8a8a', '#ff3fa4', '#22e0ff', '#ffd23f']);
+add('nova_plan', 'nova', 'Plan Technique', 'milspec', 'blueprint', ['#123a7a', '#5a8adf', '#e8f0ff']);
+add('p90_topo', 'p90', 'Topographie', 'milspec', 'topo', ['#2a2a3a', '#ff8a1f', '#5a5a7a']);
+add('ssg_tiedye', 'ssg08', 'Tie & Dye', 'milspec', 'tiedye', ['#22e0ff', '#7a3cff', '#3ff0a0']);
+add('usp_koi', 'usp', 'Koï', 'restricted', 'koi', ['#101828', '#3a5a8a', '#ff4a2a', '#ffffff']);
+add('deagle_pixel', 'deagle', 'Pixel Héros', 'restricted', 'pixelart', ['#0a1a10', '#3ff0a0', '#ffd23f', '#ff4f6a']);
+add('m4_graffiti', 'm4a1s', 'Graffiti Néon', 'restricted', 'graffiti', ['#2a2a30', '#ff2ed1', '#2ef2c5', '#ffe53f']);
+add('ak_azteque', 'ak47', 'Aztèque', 'classified', 'tribal', ['#1a1410', '#e0a526', '#d42b2b', '#2ec4b6']);
+add('ssg_toile', 'ssg08', 'Toile Pourpre', 'classified', 'web', ['#6a0a12', '#0a0204']);
+add('awp_tag', 'awp', 'Tag Urbain', 'classified', 'graffiti', ['#3a3a40', '#ff6a13', '#22e0ff', '#ff2ed1']);
+add('ak_kaleido', 'ak47', 'Kaléidoscope', 'covert', 'kaleido', ['#0a0a1a', '#ff3fa4', '#22e0ff', '#ffd23f']);
+add('deagle_orfeuille', 'deagle', 'Feuille d\'Or', 'covert', 'goldleaf', ['#0e0e10', '#e0b23a', '#fff0a0'], { fin: { metal: 0.85, rough: 0.2 } });
+add('bayo_toile', 'knife', 'Toile Pourpre', 'gold', 'web', ['#8a0a14', '#0a0204'], { knife: 'bayonet', fin: { metal: 0.6, rough: 0.3 } });
+add('flip_kaleido', 'knife', 'Kaléidoscope', 'gold', 'kaleido', ['#0a0a1a', '#ff3fa4', '#22e0ff', '#ffd23f'], { knife: 'flip', fin: { metal: 0.7, rough: 0.2 } });
+add('bayo_damas', 'knife', 'Acier Damas', 'gold', 'damascus', ['#2a2c30', '#b8bec6', '#5a6a8a'], { knife: 'bayonet', fin: { metal: 0.95, rough: 0.18 } });
+
+// ── Caisse Safari ────────────────────────────────────────────────────────────
+add('glock_leopard', 'glock', 'Léopard', 'milspec', 'leopard', ['#c9a060', '#2a1a0a', '#8a5a2a']);
+add('mp9_bois', 'mp9', 'Bois Brut', 'milspec', 'woodgrain', ['#5a3a1a', '#a87a4a']);
+add('p90_zebre', 'p90', 'Zèbre', 'milspec', 'stripes', ['#f0f0e8', '#141414']);
+add('nova_savane', 'nova', 'Savane', 'milspec', 'camo', ['#c8a868', '#8a6a3a', '#5a4a2a', '#e0c890']);
+add('usp_leopard', 'usp', 'Panthère des Neiges', 'milspec', 'leopard', ['#d8dce0', '#2a2e34', '#8a96a2']);
+add('ssg_koi', 'ssg08', 'Étang', 'restricted', 'koi', ['#0d3a2a', '#5ae0a0', '#ff7a1f', '#ffffff']);
+add('m4_damas', 'm4a1s', 'Damas Bleu', 'restricted', 'damascus', ['#0a1a3a', '#6a9adf', '#c8d8ff'], { fin: { metal: 0.85, rough: 0.2 } });
+add('ak_leopard', 'ak47', 'Jaguar', 'restricted', 'leopard', ['#d8a040', '#1a0e04', '#a86a20']);
+add('deagle_tigre', 'deagle', 'Dent de Tigre', 'classified', 'tigertooth', ['#c98a1e', '#3a2205', '#ffe08a'], { fin: { metal: 0.9, rough: 0.15 } });
+add('m4_couchant', 'm4a1s', 'Soleil Couchant', 'classified', 'sunset', ['#2a0a4a', '#ff3f7a', '#ffb347', '#120418']);
+add('awp_safari', 'awp', 'Safari', 'classified', 'leopard', ['#e0b060', '#1a0e04', '#b07a30']);
+add('ak_wyrm', 'ak47', 'Wyrm de Jade', 'covert', 'dragonart', ['#e8efe0', '#1a8a6a', '#0a2a20', '#9ac8b0', '#e0b23a']);
+add('usp_dragon', 'usp', 'Wyrm Rouge', 'covert', 'dragonart', ['#f0e6d0', '#b02a1a', '#2a0a06', '#d8b890', '#ffd23f']);
+add('kara_tigre', 'knife', 'Dent de Tigre', 'gold', 'tigertooth', ['#c98a1e', '#3a2205', '#ffe08a'], { knife: 'karambit', fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
+add('papi_damas', 'knife', 'Acier Damas', 'gold', 'damascus', ['#2a2c30', '#b8bec6', '#5a6a8a'], { knife: 'butterfly', fin: { metal: 0.95, rough: 0.18 } });
+add('flip_leopard', 'knife', 'Léopard', 'gold', 'leopard', ['#c9a060', '#2a1a0a', '#8a5a2a'], { knife: 'flip', fin: { metal: 0.5, rough: 0.35 } });
+
 export const SKINS = {};
 for (const s of S) SKINS[s.id] = s;
 
 export const CASES = [
+  {
+    id: 'sniper', name: 'Caisse Sniper', price: 400, color: '#2a6adf', tag: '100 % AWP',
+    items: ['awp_topo', 'awp_damier', 'awp_bois', 'awp_plan', 'awp_koi', 'awp_tiedye', 'awp_pixel', 'awp_toile', 'awp_azteque', 'awp_couchant', 'awp_wyrm', 'awp_orfeuille', 'awp_kaleido', 'flip_tigre', 'flip_damas', 'kara_toile', 'papi_kaleido'],
+  },
+  {
+    id: 'street', name: 'Caisse Street', price: 300, color: '#8a8a8a',
+    items: ['glock_damier', 'mp9_graffiti', 'nova_plan', 'p90_topo', 'ssg_tiedye', 'usp_koi', 'deagle_pixel', 'm4_graffiti', 'ak_azteque', 'ssg_toile', 'awp_tag', 'ak_kaleido', 'deagle_orfeuille', 'bayo_toile', 'flip_kaleido', 'bayo_damas'],
+  },
+  {
+    id: 'safari', name: 'Caisse Safari', price: 300, color: '#c98a2b',
+    items: ['glock_leopard', 'mp9_bois', 'p90_zebre', 'nova_savane', 'usp_leopard', 'ssg_koi', 'm4_damas', 'ak_leopard', 'deagle_tigre', 'm4_couchant', 'awp_safari', 'ak_wyrm', 'usp_dragon', 'kara_tigre', 'papi_damas', 'flip_leopard'],
+  },
   {
     id: 'prelude', name: 'Caisse Prélude', price: 250, color: '#c98a2b',
     items: ['glock_sable', 'mp9_acier', 'nova_brindille', 'p90_urbain', 'ssg_ondes', 'usp_cobalt', 'm4_ruche', 'deagle_carbone', 'ak_tigre', 'awp_electrique', 'awp_dragon', 'ak_inferno', 'kara_fondu', 'kara_trempe', 'kara_doppler'],
