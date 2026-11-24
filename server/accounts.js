@@ -6,7 +6,7 @@ import { PRIMARIES, SECONDARIES, MELEES, WEAPONS } from '../shared/weapons.js';
 import { CREDITS } from '../shared/constants.js';
 
 const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
-const MAX_INVENTORY = 2000;
+export const MAX_INVENTORY = 10000;
 export const OPEN_COUNTS = [1, 5, 10, 100];
 const GUEST_MAX_AGE = 60 * 24 * 3600 * 1000;
 
@@ -65,11 +65,13 @@ export function isAdmin(a) {
   return (process.env.ADMIN_USERS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean).includes(a.nameLower);
 }
 
-export function publicProfile(a) {
+// withInv = false : profil « léger » sans l'inventaire (les changements sont envoyés à part)
+export function publicProfile(a, withInv = true) {
   const p = {
-    name: a.name, registered: !!a.nameLower, credits: a.credits, inventory: a.inventory, equipped: a.equipped,
-    loadout: a.loadout, settings: a.settings, stats: a.stats,
+    name: a.name, registered: !!a.nameLower, credits: a.credits, equipped: a.equipped,
+    loadout: a.loadout, settings: a.settings, stats: a.stats, invCount: a.inventory.length, invMax: MAX_INVENTORY,
   };
+  if (withInv) p.inventory = a.inventory;
   if (isAdmin(a)) p.adm = true;
   return p;
 }
@@ -190,15 +192,16 @@ export function sellMany(acc, uids) {
   if (!Array.isArray(uids)) return { error: 'Liste invalide.' };
   const set = new Set(uids.slice(0, MAX_INVENTORY).map(String));
   let value = 0, count = 0;
+  const sold = [];
   acc.inventory = acc.inventory.filter((i) => {
     if (!set.has(i.uid)) return true;
-    value += itemValue(i); count++;
+    value += itemValue(i); count++; sold.push(i.uid);
     return false;
   });
   for (const [w, u] of Object.entries(acc.equipped)) if (set.has(u)) delete acc.equipped[w];
   acc.credits += value;
   store.save(acc);
-  return { value, count };
+  return { value, count, uids: sold };
 }
 
 export function sell(acc, uid) {
@@ -209,7 +212,7 @@ export function sell(acc, uid) {
   const v = itemValue(it);
   acc.credits += v;
   store.save(acc);
-  return { value: v };
+  return { value: v, uid };
 }
 
 export function equip(acc, uid) {

@@ -11,7 +11,7 @@ function hello() {
   send({ t: 'hello', token: P.getToken(), name: P.profile().name, local: legacy || undefined });
 }
 
-setProfileHandler((p) => { P.setProfile(p); });
+setProfileHandler((p, m) => { P.setProfile(p); if (m) P.applyInvDelta(m.invAdd, m.invDel); });
 
 initGame(document.getElementById('game'), (tab) => {
   showMenu(tab);

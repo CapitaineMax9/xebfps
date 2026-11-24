@@ -304,3 +304,14 @@ input:disabled { opacity: .6; }
 .top-me { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 6px; }
 #op-result .many-item img { width: 100%; max-width: none; }
 #op-result .many-best img { width: 220px; }
+
+/* vente facile */
+.inv-sell, .inv-selbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.inv-selbar { background: rgba(255, 179, 71, .08); border: 1px solid rgba(255, 179, 71, .3); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+.inv-pager { display: flex; gap: 6px; justify-content: center; align-items: center; margin-top: 14px; font-size: 13px; color: var(--muted); }
+.item .qs { position: absolute; right: 6px; bottom: 26px; font-size: 10px; font-weight: 700; background: rgba(58, 29, 34, .92); color: #ffb0b0; border: 1px solid rgba(255, 120, 120, .35); border-radius: 4px; padding: 2px 6px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+.item:hover .qs { opacity: 1; }
+.item .qs:hover { background: #7a2a32; color: #fff; }
+.item.selected { outline: 3px solid var(--acc); outline-offset: -3px; }
+.item.selected::after { content: '✓'; position: absolute; top: 4px; left: 50%; transform: translateX(-50%); background: var(--acc); color: #1a1004; font-weight: 800; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+@media (hover: none) { .item .qs { opacity: 1; } }

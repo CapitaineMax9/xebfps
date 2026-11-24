@@ -191,7 +191,8 @@ function authLimited(ip) {
 }
 
 async function handleRequest(c, ws, m) {
-  const reply = (o) => send(ws, { t: 'res', rid: m.rid, profile: ACC.publicProfile(c.acc), ...o });
+  // par défaut, profil léger + seulement les objets ajoutés / retirés de l'inventaire
+  const reply = (o, full = false) => send(ws, { t: 'res', rid: m.rid, profile: ACC.publicProfile(c.acc, full), ...o });
   const acc = c.acc;
   switch (m.op) {
     case 'register': {
@@ -207,23 +208,23 @@ async function handleRequest(c, ws, m) {
       if (r.error) return reply(r);
       leave(c);
       c.acc = r.acc; c.token = r.token;
-      return reply({ ok: true, token: r.token });
+      return reply({ ok: true, token: r.token }, true);
     }
     case 'logout': {
       await ACC.logout(c.token);
       leave(c);
       const r = await ACC.authenticate(null, 'Joueur');
       c.acc = r.acc; c.token = r.token;
-      return reply({ ok: true, token: r.token });
+      return reply({ ok: true, token: r.token }, true);
     }
     case 'password': return reply(await ACC.changePassword(acc, m.old, m.password));
     case 'name': ACC.setGuestName(acc, m.name); return reply({ ok: true });
-    case 'openCase': return reply(ACC.openCase(acc, m.caseId, m.n));
-    case 'sellMany': { const r = ACC.sellMany(acc, m.uids); skinsChanged(c); return reply(r); }
-    case 'sell': { const r = ACC.sell(acc, m.uid); skinsChanged(c); return reply(r); }
+    case 'openCase': { const r = ACC.openCase(acc, m.caseId, m.n); return reply(r.items ? { ...r, invAdd: r.items } : r); }
+    case 'sellMany': { const r = ACC.sellMany(acc, m.uids); skinsChanged(c); return reply(r.uids ? { ...r, invDel: r.uids } : r); }
+    case 'sell': { const r = ACC.sell(acc, m.uid); skinsChanged(c); return reply(r.uid ? { ...r, invDel: [r.uid] } : r); }
     case 'equip': { const r = ACC.equip(acc, m.uid); skinsChanged(c); return reply(r); }
     case 'unequip': { const r = ACC.unequip(acc, m.weapon); skinsChanged(c); return reply(r); }
-    case 'tradeup': { const r = ACC.tradeUp(acc, m.uids); skinsChanged(c); return reply(r); }
+    case 'tradeup': { const r = ACC.tradeUp(acc, m.uids); skinsChanged(c); return reply(r.item ? { ...r, invDel: m.uids, invAdd: [r.item] } : r); }
     case 'profile': return reply({ ok: true });
     case 'top': return reply(await ACC.leaderboard(m.cat, acc.nameLower ? acc : null));
     case 'x': {

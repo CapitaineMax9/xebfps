@@ -70,7 +70,7 @@ export function connect(onHello, onStatus) {
       return;
     }
     if (m.t === 'ping') { send({ t: 'pong', s: m.s }); return; }
-    if (m.t === 'res') { const cb = pending.get(m.rid); if (cb) { pending.delete(m.rid); if (m.profile && onProfile) onProfile(m.profile); cb(m); } return; }
+    if (m.t === 'res') { const cb = pending.get(m.rid); if (cb) { pending.delete(m.rid); if (m.profile && onProfile) onProfile(m.profile, m); cb(m); } return; }
     const h = handlers.get(m.t);
     if (h) h(m);
   };
