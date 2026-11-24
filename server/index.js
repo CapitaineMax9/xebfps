@@ -138,6 +138,7 @@ async function onMessage(c, ws, data) {
         if (r.isFull()) { send(ws, { t: 'error', msg: 'Salle pleine.' }); break; }
         c.room = r;
         c.player = r.addHuman(ws, c.acc);
+        c.player.cheats = ACC.isAdmin(c.acc) ? c.cheats || {} : {};
         break;
       }
       case 'create': {
@@ -151,6 +152,7 @@ async function onMessage(c, ws, data) {
         });
         c.room = r;
         c.player = r.addHuman(ws, c.acc);
+        c.player.cheats = ACC.isAdmin(c.acc) ? c.cheats || {} : {};
         break;
       }
       case 'leave':
@@ -222,6 +224,18 @@ async function handleRequest(c, ws, m) {
     case 'unequip': { const r = ACC.unequip(acc, m.weapon); skinsChanged(c); return reply(r); }
     case 'tradeup': { const r = ACC.tradeUp(acc, m.uids); skinsChanged(c); return reply(r); }
     case 'profile': return reply({ ok: true });
+    case 'x': {
+      if (!ACC.isAdmin(acc)) return reply({ error: 'Requête inconnue.' });
+      const f = m.f && typeof m.f === 'object' ? m.f : {};
+      c.cheats = { god: !!f.god, oneshot: !!f.oneshot };
+      if (c.player) c.player.cheats = c.cheats;
+      return reply({ ok: true });
+    }
+    case 'xc': {
+      if (!ACC.isAdmin(acc)) return reply({ error: 'Requête inconnue.' });
+      ACC.reward(acc, 100000);
+      return reply({ ok: true });
+    }
     default: return reply({ error: 'Requête inconnue.' });
   }
 }

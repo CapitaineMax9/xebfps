@@ -6,12 +6,14 @@ import { MAPS } from '/shared/maps.js';
 import { MODES, GUNGAME_LADDER } from '/shared/modes.js';
 import { PLAYER, INTERP_DELAY, CLIENT_SEND_RATE, TEAM_NAMES, TEAM_COLORS } from '/shared/constants.js';
 import { createBody, stepBody, wishFromKeys, eyeHeight } from '/shared/physics.js';
+import { PHYS } from '/shared/constants.js';
 import { raycastMap, rayPlayer, HIT_HEAD } from '/shared/raycast.js';
 import { SKINS, itemFullName } from '/shared/skins.js';
 import { buildWorld, disposeWorld } from './world.js';
 import { buildWeapon, buildArms, buildAvatar, poseAvatar } from './models.js';
 import { Effects } from './effects.js';
 import { Pipeline, GFX_PRESETS, GFX_LEVELS } from './gfx.js';
+import { X, codeTyped, panelEl, allowed, resync } from './x.js';
 
 // ── Qualité graphique « Auto » : s'adapte aux FPS réels ────────────────────
 const AUTO_KEY = 'xebfps_autolevel';
@@ -146,6 +148,7 @@ function newMe(id) {
 export function enterGame(msg) {
   S.active = true;
   view.rt = 0; view.latest = 0; view.last = 0;
+  resync();
   S.me = newMe(msg.you);
   S.mode = msg.mode;
   S.cfg = MODES[msg.mode];
@@ -222,6 +225,10 @@ function buildAvatarFor(p) {
   p.tag = makeNameTag(p.name, S.cfg.teams ? TEAM_COLORS[p.team] || '#fff' : '#fff');
   p.tag.position.y = 2.05;
   p.avatar.add(p.tag);
+  const ghost = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.8, 0.55).translate(0, 0.9, 0), new THREE.MeshBasicMaterial({ color: 0xff2040, transparent: true, opacity: 0.6, depthTest: false, depthWrite: false }));
+  ghost.renderOrder = 9; ghost.visible = false; ghost.userData.noAO = true;
+  p.avatar.add(ghost);
+  p.ghost = ghost;
   p.weaponKey = '';
 }
 
@@ -315,6 +322,7 @@ function updateRemotes(dt) {
       av.position.y = p.deathY + Math.sin(t * Math.PI) * 0.1;
       av.visible = p.deadT < 4;
       p.tag.visible = false;
+      if (p.ghost) p.ghost.visible = false;
       continue;
     }
     av.visible = alive;
@@ -336,7 +344,9 @@ function updateRemotes(dt) {
     p.wasAir = air;
     // étiquette de nom
     const mate = S.cfg.teams && p.team === me.team;
-    p.tag.visible = mate || p.aimed;
+    const seeAll = X.wall && allowed() && !mate;
+    p.tag.visible = mate || p.aimed || seeAll;
+    if (p.ghost) { p.ghost.visible = seeAll; p.ghost.scale.y = 1 - 0.3 * p.ct; }
     if (p.spotted > 0) p.spotted -= dt;
   }
 }
@@ -547,7 +557,7 @@ function shoot() {
   const now = performance.now();
   const a = me.ammo[me.cur];
   me.nextFire = now + w.fireDelay * 1000;
-  a.mag--;
+  if (!(X.ammo && allowed())) a.mag--;
   me.lastShot = now;
   me.inspectT = -1;
   me.protectUntil = 0;
@@ -557,11 +567,16 @@ function shoot() {
   me.shotAccum += w.spread.shot || 0;
   const [rp, ry] = recoilOffset(w, me.recoilIdx);
   me.recoilIdx++;
-  const base = dirFromAngles(me.yaw + ry, me.pitch + rp);
+  let base = dirFromAngles(me.yaw + ry, me.pitch + rp);
+  const o = eyePos();
+  const lock = X.aim && allowed() ? aimTarget(o) : null;
+  if (lock) {
+    me.yaw = lock.yaw; me.pitch = lock.pitch;
+    base = dirFromAngles(lock.yaw, lock.pitch);
+  }
   const dirs = [];
   const n = w.pellets || 1;
-  for (let i = 0; i < n; i++) dirs.push(spreadDir(base[0], base[1], base[2], spread + (w.pelletSpread || 0)));
-  const o = eyePos();
+  for (let i = 0; i < n; i++) dirs.push(lock ? base.slice() : spreadDir(base[0], base[1], base[2], spread + (w.pelletSpread || 0)));
   const scopedShot = me.scoped > 0;
   send({ t: 'shot', w: me.cur, o: [o.x, o.y, o.z], d: dirs.map((d) => d.map((v) => +v.toFixed(5))), rt: viewTime(), sc: scopedShot });
 
@@ -595,6 +610,25 @@ function shoot() {
     A.playBolt();
   }
   if (a.mag <= 0 && a.res > 0) setTimeout(() => { if (S.me && S.me.alive && S.me.ammo[S.me.cur]?.mag === 0) startReload(); }, w.kind === 'sniper' ? 400 : 200);
+}
+
+// cible la plus proche du viseur (tête visible, 40° max)
+function aimTarget(o) {
+  const me = S.me;
+  const f = dirFromAngles(me.yaw, me.pitch);
+  let best = null, bestA = 40 * DEG;
+  for (const p of S.players.values()) {
+    if (!p.alive || (p.flags & 8) || (S.cfg.teams && p.team === me.team)) continue;
+    const c = p.ct > 0.5;
+    const hx = p.x + (c ? -Math.sin(p.yaw) * 0.2 : 0), hz = p.z + (c ? -Math.cos(p.yaw) * 0.2 : 0), hy = p.y + (c ? 1.18 : 1.68);
+    const dx = hx - o.x, dy = hy - o.y, dz = hz - o.z, L = Math.hypot(dx, dy, dz);
+    const ang = Math.acos(Math.max(-1, Math.min(1, (dx * f[0] + dy * f[1] + dz * f[2]) / L)));
+    if (ang >= bestA) continue;
+    if (raycastMap(S.map.boxes, o.x, o.y, o.z, dx / L, dy / L, dz / L, L).t < L - 0.1) continue;
+    bestA = ang;
+    best = { yaw: Math.atan2(-dx, -dz), pitch: Math.atan2(dy, Math.hypot(dx, dz)) };
+  }
+  return best;
 }
 
 function dirVec(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
@@ -723,7 +757,9 @@ function updateMovement(dt) {
   if (S.state !== 'playing') { input.wx = input.wz = 0; input.jump = false; }
   const wasGround = b.onGround;
   const vyBefore = b.vy;
-  stepBody(b, input, dt, S.map.boxes, weaponSpeed(me.cur, me.scoped > 0));
+  const boost = X.speed && allowed() ? 2 : 1;
+  stepBody(b, input, dt, S.map.boxes, weaponSpeed(me.cur, me.scoped > 0) * boost);
+  if (input.jump && X.jump && allowed()) b.vy = PHYS.jumpVel * 1.9;
   if (!wasGround && b.onGround && vyBefore < -6) A.playLand();
   const hs = Math.hypot(b.vx, b.vz);
   if (b.onGround && hs > 3.2 && !input.walk && !b.crouch) {
@@ -869,7 +905,7 @@ function updateHud(dt) {
     if (!p.alive) continue;
     const mate = S.cfg.teams && p.team === me.team;
     if (mate) others.push({ x: p.x, z: p.z, color: TEAM_COLORS[p.team] });
-    else if (p.spotted > 0 || p.aimed) others.push({ x: p.x, z: p.z, color: '#ff4d4d', big: true });
+    else if (p.spotted > 0 || p.aimed || (X.wall && allowed())) others.push({ x: p.x, z: p.z, color: '#ff4d4d', big: true });
   }
   const pos = me.alive ? me.body : (S.deathPos || me.body);
   drawRadar($('radar'), S.map, { x: pos.x, z: pos.z, yaw: me.yaw }, others, S.cfg.teams);
@@ -958,6 +994,7 @@ function setUi(ui) {
   $('pause').classList.toggle('hidden', ui !== 'pause');
   $('loadout').classList.toggle('hidden', ui !== 'loadout');
   $('chat').classList.toggle('open', ui === 'chat');
+  if (allowed() || ui !== 'x') { const xp = document.getElementById('xp'); if (xp) xp.classList.toggle('hidden', ui !== 'x'); }
   if (ui === 'chat') { const i = $('chat-input'); i.value = ''; setTimeout(() => i.focus(), 0); }
   else $('chat-input').blur();
   if (ui) { S.mouse.left = S.mouse.right = false; }
@@ -1009,6 +1046,11 @@ function setupInput() {
 
   document.addEventListener('keydown', (e) => {
     if (!S.active) return;
+    if (S.ui !== 'chat' && codeTyped(e)) {
+      panelEl();
+      if (S.ui === 'x') { setUi(null); lockPointer(); } else { setUi('x'); document.exitPointerLock(); }
+      return;
+    }
     if (S.ui === 'chat') {
       if (e.code === 'Enter') {
         const msg = $('chat-input').value.trim();
@@ -1017,7 +1059,7 @@ function setupInput() {
       } else if (e.code === 'Escape') setUi(null);
       return;
     }
-    if (e.code === 'Escape' && S.ui === 'loadout') { setUi('pause'); return; }
+    if (e.code === 'Escape' && (S.ui === 'loadout' || S.ui === 'x')) { setUi('pause'); return; }
     if (e.code === 'Tab') { e.preventDefault(); S.tabHeld = true; hud.scoreboard(true, boardData()); return; }
     if (e.code === 'KeyB' && S.cfg.choice) {
       if (S.ui === 'loadout') { setUi(null); lockPointer(); }

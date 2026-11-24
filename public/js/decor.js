@@ -237,35 +237,43 @@ export function buildDecor(map, group, quality) {
   outsideGround.receiveShadow = true;
   dec.add(outsideGround);
 
-  const ring = (n, dMin, dMax, fn) => {
+  // Place des objets derrière les murs extérieurs. make() renvoie { r: rayon de l'objet, place(x, z) } :
+  // l'objet entier reste à au moins 1 m de la face extérieure du mur (jamais dans la zone jouable).
+  const ring = (n, dMin, dMax, make) => {
     for (let i = 0; i < n; i++) {
-      const side = Math.floor(rnd() * 4), t = rnd() * 2 - 1, d = dMin + rnd() * (dMax - dMin);
+      const o = make();
+      const side = Math.floor(rnd() * 4), t = rnd() * 2 - 1, d = Math.max(dMin, o.r + 1) + rnd() * (dMax - dMin);
       let x, z;
       if (side === 0) { x = t * (halfX + d); z = -halfZ - 2 - d; } else if (side === 1) { x = t * (halfX + d); z = halfZ + 2 + d; }
       else if (side === 2) { x = -halfX - 2 - d; z = t * (halfZ + d); } else { x = halfX + 2 + d; z = t * (halfZ + d); }
-      fn(x, z, i);
+      o.place(x, z, i);
     }
   };
 
   if (isDesert) {
     // silhouettes de maisons et dômes
-    ring(rich ? 40 : 18, 8, 60, (x, z) => {
+    ring(rich ? 40 : 18, 8, 60, () => {
       const w = 6 + rnd() * 10, d = 6 + rnd() * 10, h = H + 1 + rnd() * 8;
-      inst.add(rnd() < 0.5 ? 'dist' : 'dist2', rnd() < 0.5 ? M.distant : M.distant2, x, h / 2, z, w, h, d, rnd() * 0.3);
-      if (rnd() < 0.2) {
-        const dome = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w, d) * 0.4, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.dome);
-        dome.position.set(x, h, z);
-        dec.add(dome);
-      }
+      return {
+        r: Math.hypot(w, d) / 2,
+        place: (x, z) => {
+          inst.add(rnd() < 0.5 ? 'dist' : 'dist2', rnd() < 0.5 ? M.distant : M.distant2, x, h / 2, z, w, h, d, rnd() * 0.3);
+          if (rnd() < 0.2) {
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w, d) * 0.4, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.dome);
+            dome.position.set(x, h, z);
+            dec.add(dome);
+          }
+        },
+      };
     });
     // palmiers
-    const palms = buildPalms(rich ? 34 : 16, (fn) => ring(rich ? 34 : 16, 3, 30, fn), rnd, T.leaf);
+    const palms = buildPalms(rich ? 34 : 16, (fn) => ring(rich ? 34 : 16, 3, 30, () => ({ r: 0.5, place: fn })), rnd, T.leaf);
     dec.add(palms);
   } else {
     // entrepôts et grues au loin
-    ring(rich ? 30 : 14, 10, 70, (x, z) => {
+    ring(rich ? 30 : 14, 10, 70, () => {
       const w = 12 + rnd() * 20, d = 10 + rnd() * 16, h = 10 + rnd() * 14;
-      inst.add('dist2', M.distant2, x, h / 2, z, w, h, d, rnd() * 0.2);
+      return { r: Math.hypot(w, d) / 2, place: (x, z) => inst.add('dist2', M.distant2, x, h / 2, z, w, h, d, rnd() * 0.2) };
     });
     // grue sur les piliers
     for (const sgn of [-1, 1]) {

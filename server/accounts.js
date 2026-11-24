@@ -58,11 +58,19 @@ function newAccount(name) {
   };
 }
 
+// Comptes privilégiés : liste lue dans la variable d'environnement ADMIN_USERS (pseudos séparés par des virgules)
+export function isAdmin(a) {
+  if (!a || !a.nameLower) return false;
+  return (process.env.ADMIN_USERS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean).includes(a.nameLower);
+}
+
 export function publicProfile(a) {
-  return {
+  const p = {
     name: a.name, registered: !!a.nameLower, credits: a.credits, inventory: a.inventory, equipped: a.equipped,
     loadout: a.loadout, settings: a.settings, stats: a.stats,
   };
+  if (isAdmin(a)) p.adm = true;
+  return p;
 }
 
 function touch(a) { a.lastSeen = Date.now(); store.save(a); }
