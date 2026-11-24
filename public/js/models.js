@@ -44,6 +44,10 @@ const M = {
   steel: new THREE.MeshStandardMaterial({ color: 0xb9bec6, roughness: 0.25, metalness: 0.95 }),
   lens: new THREE.MeshStandardMaterial({ color: 0x3fa0ff, roughness: 0.05, metalness: 0.6, emissive: 0x0a2a55, emissiveIntensity: 0.6 }),
   glove: new THREE.MeshStandardMaterial({ color: 0x262626, roughness: 0.85 }),
+  glow: new THREE.MeshStandardMaterial({ color: 0x40d8ff, emissive: 0x40d8ff, emissiveIntensity: 3, roughness: 0.3 }),
+  wood: new THREE.MeshStandardMaterial({ color: 0x6a4024, roughness: 0.8 }),
+  warhead: new THREE.MeshStandardMaterial({ color: 0x3a4a22, roughness: 0.6, metalness: 0.3 }),
+  string: new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.9 }),
   gloveKnuckle: new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.2 }),
   sleeve: new THREE.MeshStandardMaterial({ color: 0x4a5640, roughness: 0.95 }),
   cuff: new THREE.MeshStandardMaterial({ color: 0x343c2e, roughness: 0.95 }),
@@ -64,6 +68,25 @@ const DEFAULTS = {
   p90: { skin: 0x2b2d2b, skin2: 0x2b2d2b },
   nova: { skin: 0x2a2a2a, skin2: 0x5a3a20 },
   knife: { skin: 0xc8ccd2, skin2: 0xc8ccd2, metal: 0.95 },
+  famas: { skin: 0x2e3236, skin2: 0x2e3236 },
+  galil: { skin: 0x34363a, skin2: 0x5a4a32 },
+  aug: { skin: 0x4a5a3a, skin2: 0x4a5a3a },
+  mac10: { skin: 0x2a2a2c, skin2: 0x2a2a2c },
+  ump45: { skin: 0x303234, skin2: 0x303234 },
+  mp7: { skin: 0x2c2e30, skin2: 0x2c2e30 },
+  m249: { skin: 0x2a2c2a, skin2: 0x4a5a32 },
+  xm1014: { skin: 0x2a2a2a, skin2: 0x2a2a2a },
+  scar20: { skin: 0x8a7a5a, skin2: 0x8a7a5a },
+  fiveseven: { skin: 0x3a3a3a, skin2: 0x3a3a3a },
+  tec9: { skin: 0x2e2e2e, skin2: 0x2e2e2e },
+  r8: { skin: 0xa8adb4, skin2: 0x6a4024, metal: 0.85 },
+  dualies: { skin: 0xb0b4ba, skin2: 0xb0b4ba, metal: 0.85 },
+  zeus: { skin: 0xe0c020, skin2: 0x222222 },
+  railgun: { skin: 0x2a3440, skin2: 0x2a3440, metal: 0.6 },
+  rpg: { skin: 0x4a5a2a, skin2: 0x4a5a2a },
+  crossbow: { skin: 0x2a2a2a, skin2: 0x7a4a24 },
+  confetti: { skin: 0xff3fa4, skin2: 0x22e0ff },
+  pan: { skin: 0x2a2a2c, skin2: 0x2a2a2c, metal: 0.6 },
 };
 
 const matCache = new Map();
@@ -252,7 +275,226 @@ const BUILDERS = {
     g.userData.mag = [];
     return { muzzle: [0, 0.074, -0.74], st: [0.024, 0.05, -0.08] };
   },
+
+  // ── Nouvelles armes ──────────────────────────────────────────────────
+  famas(b, g) { // bullpup avec poignée de transport
+    b.box(0.052, 0.1, 0.56, 0, 0.03, -0.06);
+    b.box(0.02, 0.035, 0.34, 0, 0.115, -0.1, 'dark');
+    b.box(0.018, 0.05, 0.02, 0, 0.09, -0.26, 'dark'); b.box(0.018, 0.05, 0.02, 0, 0.09, 0.06, 'dark');
+    b.cyl(0.01, 0.2, 0, 0.04, -0.44);
+    b.box(0.034, 0.1, 0.04, 0, -0.05, -0.02, 'dark', 0.2);
+    b.box(0.03, 0.02, 0.08, 0, -0.01, -0.06, 'dark');
+    g.userData.mag = [b.box(0.03, 0.12, 0.055, 0, -0.06, 0.12, 'dark', -0.1)];
+    b.box(0.05, 0.11, 0.03, 0, 0.02, 0.23, 'dark');
+    return { muzzle: [0, 0.04, -0.55], st: [0.028, 0.03, -0.1] };
+  },
+  galil(b, g) {
+    b.box(0.05, 0.075, 0.34, 0, 0.035, -0.08);
+    b.box(0.06, 0.06, 0.2, 0, 0.03, -0.34, 'skin2');
+    b.cyl(0.011, 0.26, 0, 0.045, -0.56);
+    b.cyl(0.015, 0.05, 0, 0.045, -0.7, 'metal', 8);
+    b.box(0.012, 0.05, 0.012, 0, 0.08, -0.62, 'metal');
+    b.box(0.036, 0.11, 0.045, 0, -0.045, 0.04, 'dark', 0.3);
+    g.userData.mag = [b.box(0.032, 0.14, 0.066, 0, -0.07, -0.15, 'skin', -0.15)];
+    b.box(0.012, 0.06, 0.24, 0, 0.0, 0.22, 'metal', 0.1); b.box(0.012, 0.06, 0.012, 0, -0.02, 0.33, 'metal');
+    return { muzzle: [0, 0.045, -0.73], st: [0.027, 0.035, -0.12] };
+  },
+  aug(b, g) { // bullpup avec lunette intégrée
+    b.box(0.062, 0.09, 0.52, 0, 0.02, -0.02);
+    b.cyl(0.02, 0.2, 0, 0.12, -0.1, 'dark', 12);
+    b.cyl(0.024, 0.004, 0, 0.12, -0.2, 'lens', 12); b.cyl(0.02, 0.004, 0, 0.12, 0.0, 'lens', 12);
+    b.box(0.02, 0.05, 0.03, 0, 0.08, -0.1, 'dark');
+    b.cyl(0.011, 0.22, 0, 0.03, -0.38);
+    b.cyl(0.015, 0.04, 0, 0.03, -0.5, 'metal', 8);
+    b.box(0.03, 0.09, 0.035, 0, -0.06, -0.2, 'dark', -0.1);
+    b.box(0.034, 0.1, 0.04, 0, -0.05, -0.04, 'skin', 0.2);
+    g.userData.mag = [b.box(0.03, 0.11, 0.05, 0, -0.05, 0.1, 'dark', -0.1)];
+    return { muzzle: [0, 0.03, -0.52], st: [0.032, 0.02, -0.1], scope: [0, 0.12, 0.02] };
+  },
+  mac10(b, g) {
+    b.box(0.042, 0.1, 0.22, 0, 0.03, -0.04);
+    b.cyl(0.01, 0.07, 0, 0.06, -0.18);
+    b.box(0.032, 0.1, 0.04, 0, -0.05, 0.0, 'dark', 0.1);
+    g.userData.mag = [b.box(0.026, 0.08, 0.032, 0, -0.13, 0.005, 'dark', 0.1)];
+    b.box(0.006, 0.02, 0.2, 0.018, 0.06, 0.15, 'metal'); b.box(0.006, 0.02, 0.2, -0.018, 0.06, 0.15, 'metal');
+    return { muzzle: [0, 0.06, -0.22], st: [0.022, 0.04, -0.06] };
+  },
+  ump45(b, g) {
+    b.box(0.05, 0.09, 0.36, 0, 0.03, -0.08);
+    rail(b, 12, 0, 0.08, 0.0);
+    b.cyl(0.012, 0.07, 0, 0.05, -0.29);
+    b.box(0.034, 0.1, 0.042, 0, -0.04, 0.05, 'dark', 0.25);
+    g.userData.mag = [b.box(0.034, 0.13, 0.05, 0, -0.07, -0.12, 'dark', -0.05)];
+    b.box(0.04, 0.08, 0.2, 0, 0.02, 0.19);
+    return { muzzle: [0, 0.05, -0.33], st: [0.026, 0.03, -0.08] };
+  },
+  mp7(b, g) {
+    b.box(0.045, 0.08, 0.26, 0, 0.03, -0.06);
+    rail(b, 12, 0, 0.075, 0.03);
+    b.cyl(0.01, 0.07, 0, 0.045, -0.22);
+    b.box(0.024, 0.06, 0.03, 0, -0.03, -0.15, 'dark', -0.1);
+    b.box(0.032, 0.09, 0.04, 0, -0.05, 0.03, 'skin', 0.15);
+    g.userData.mag = [b.box(0.026, 0.06, 0.034, 0, -0.12, 0.04, 'dark', 0.15)];
+    b.box(0.03, 0.03, 0.18, 0, 0.02, 0.15, 'dark');
+    return { muzzle: [0, 0.045, -0.26], st: [0.024, 0.03, -0.06] };
+  },
+  m249(b, g) {
+    b.box(0.08, 0.11, 0.4, 0, 0.04, -0.05);
+    b.box(0.07, 0.06, 0.26, 0, 0.06, -0.36, 'dark');
+    b.cyl(0.014, 0.42, 0, 0.05, -0.56);
+    b.cyl(0.018, 0.05, 0, 0.05, -0.79, 'metal', 8);
+    b.box(0.015, 0.04, 0.1, 0, 0.12, -0.12, 'dark');
+    b.cyl(0.006, 0.25, 0.02, 0.0, -0.5, 'dark'); b.cyl(0.006, 0.25, -0.02, 0.0, -0.5, 'dark');
+    b.box(0.036, 0.11, 0.045, 0, -0.06, 0.05, 'dark', 0.3);
+    g.userData.mag = [b.box(0.085, 0.1, 0.13, 0.03, -0.07, -0.1, 'skin2')];
+    b.box(0.05, 0.1, 0.24, 0, 0.01, 0.25);
+    return { muzzle: [0, 0.05, -0.82], st: [0.042, 0.04, -0.05] };
+  },
+  xm1014(b, g) {
+    b.box(0.045, 0.07, 0.24, 0, 0.05, -0.08);
+    b.cyl(0.013, 0.5, 0, 0.07, -0.42);
+    b.cyl(0.014, 0.4, 0, 0.042, -0.38, 'metal');
+    b.box(0.05, 0.05, 0.12, 0, 0.045, -0.3, 'dark');
+    b.box(0.034, 0.1, 0.045, 0, -0.03, 0.04, 'dark', 0.3);
+    b.box(0.042, 0.09, 0.28, 0, 0.01, 0.2, 'skin', 0.12);
+    g.userData.mag = [];
+    return { muzzle: [0, 0.07, -0.68], st: [0.024, 0.05, -0.08] };
+  },
+  scar20(b, g) {
+    b.box(0.06, 0.09, 0.42, 0, 0.03, -0.1);
+    b.box(0.056, 0.07, 0.22, 0, 0.04, -0.4);
+    b.cyl(0.013, 0.36, 0, 0.05, -0.62);
+    b.cyl(0.018, 0.05, 0, 0.05, -0.81, 'metal', 8);
+    b.cyl(0.022, 0.3, 0, 0.14, -0.1, 'dark', 12);
+    b.cyl(0.022, 0.06, 0, 0.14, -0.27, 'dark', 12, 0.03);
+    b.cyl(0.028, 0.004, 0, 0.14, -0.302, 'lens', 12); b.cyl(0.022, 0.004, 0, 0.14, 0.052, 'lens', 12);
+    b.box(0.02, 0.04, 0.02, 0, 0.1, -0.02, 'dark'); b.box(0.02, 0.04, 0.02, 0, 0.1, -0.2, 'dark');
+    b.box(0.036, 0.11, 0.045, 0, -0.05, 0.05, 'dark', 0.3);
+    g.userData.mag = [b.box(0.04, 0.1, 0.07, 0, -0.05, -0.15, 'dark')];
+    b.box(0.05, 0.1, 0.28, 0, 0.0, 0.26);
+    return { muzzle: [0, 0.05, -0.84], st: [0.032, 0.03, -0.12], scope: [0, 0.14, 0.08] };
+  },
+  fiveseven(b, g) {
+    b.box(0.03, 0.04, 0.2, 0, 0.058, -0.06);
+    b.box(0.03, 0.026, 0.17, 0, 0.026, -0.05, 'dark');
+    b.box(0.03, 0.115, 0.05, 0, -0.035, 0.03, 'dark', 0.3);
+    g.userData.mag = [b.box(0.024, 0.03, 0.036, 0, -0.1, 0.05, 'dark', 0.3)];
+    return { muzzle: [0, 0.058, -0.16], st: [0.016, 0.058, -0.06] };
+  },
+  tec9(b, g) {
+    b.box(0.035, 0.05, 0.24, 0, 0.05, -0.08);
+    b.cyl(0.016, 0.1, 0, 0.05, -0.24, 'dark', 8);
+    b.box(0.03, 0.1, 0.04, 0, -0.03, 0.04, 'dark', 0.2);
+    g.userData.mag = [b.box(0.03, 0.14, 0.04, 0, -0.06, -0.12, 'skin')];
+    return { muzzle: [0, 0.05, -0.3], st: [0.019, 0.05, -0.08] };
+  },
+  r8(b, g) {
+    b.cyl(0.011, 0.17, 0, 0.07, -0.16, 'skin', 10);
+    b.box(0.012, 0.014, 0.17, 0, 0.083, -0.16, 'skin');
+    b.cyl(0.026, 0.055, 0, 0.05, -0.04, 'metal', 8);
+    b.box(0.026, 0.07, 0.13, 0, 0.05, -0.03, 'skin');
+    b.box(0.03, 0.11, 0.045, 0, -0.04, 0.05, 'skin2', 0.32);
+    b.box(0.01, 0.02, 0.02, 0, 0.09, 0.03, 'metal', -0.5);
+    g.userData.mag = [];
+    return { muzzle: [0, 0.07, -0.25], st: [0.014, 0.05, -0.04] };
+  },
+  dualies(b, g) { // deux pistolets : un dans chaque main
+    for (const x of [0, -0.26]) {
+      b.box(0.03, 0.04, 0.21, x, 0.058, -0.06);
+      b.box(0.03, 0.026, 0.18, x, 0.026, -0.05, 'dark');
+      b.box(0.03, 0.115, 0.05, x, -0.035, 0.03, 'dark', 0.3);
+    }
+    g.userData.mag = [];
+    return { muzzle: [0, 0.058, -0.17], st: [0.016, 0.058, -0.06] };
+  },
+  zeus(b, g) {
+    b.box(0.036, 0.05, 0.15, 0, 0.05, -0.05);
+    b.box(0.03, 0.03, 0.03, 0, 0.05, -0.14, 'dark');
+    b.box(0.004, 0.004, 0.02, 0.008, 0.055, -0.16, 'steel'); b.box(0.004, 0.004, 0.02, -0.008, 0.055, -0.16, 'steel');
+    b.box(0.032, 0.1, 0.045, 0, -0.03, 0.03, 'skin2', 0.3);
+    g.userData.mag = [];
+    return { muzzle: [0, 0.055, -0.17], st: [0.019, 0.05, -0.04] };
+  },
+  railgun(b, g) { // fusil futuriste à rails lumineux
+    b.box(0.06, 0.1, 0.62, 0, 0.04, -0.16);
+    for (const x of [-0.022, 0.022]) b.box(0.008, 0.02, 0.5, x, 0.1, -0.36, 'glow');
+    for (let i = 0; i < 5; i++) b.cyl(0.04, 0.02, 0, 0.05, -0.3 - i * 0.08, 'metal', 10);
+    b.box(0.02, 0.02, 0.5, 0, 0.05, -0.36, 'glow');
+    b.cyl(0.018, 0.16, 0, 0.14, -0.08, 'dark', 10);
+    b.box(0.036, 0.11, 0.045, 0, -0.05, 0.05, 'dark', 0.3);
+    b.box(0.05, 0.1, 0.24, 0, 0.0, 0.24);
+    g.userData.mag = [b.box(0.03, 0.06, 0.06, 0, -0.03, -0.12, 'glow')];
+    return { muzzle: [0, 0.05, -0.64], st: [0.032, 0.04, -0.1], scope: [0, 0.14, 0.0] };
+  },
+  rpg(b, g) { // tube + roquette visible quand il est chargé
+    b.cyl(0.045, 1.0, 0, 0.06, -0.15, 'skin', 14);
+    b.cyl(0.06, 0.12, 0, 0.06, 0.38, 'dark', 14, 0.045);
+    b.box(0.03, 0.1, 0.04, 0, -0.03, -0.02, 'dark', 0.2);
+    b.box(0.03, 0.1, 0.04, 0, -0.03, -0.3, 'dark', 0.1);
+    b.box(0.02, 0.06, 0.05, -0.055, 0.1, -0.2, 'dark');
+    const head = new THREE.Group();
+    const hb = makeBuilder(head, {});
+    hb.cyl(0.044, 0.1, 0, 0, 0, 'warhead', 12, 0.03);
+    hb.cyl(0.03, 0.1, 0, 0, -0.1, 'warhead', 12, 0.002);
+    head.position.set(0, 0.06, -0.7);
+    g.add(head);
+    g.userData.warhead = head;
+    g.userData.mag = [head];
+    return { muzzle: [0, 0.06, -0.82], st: [0.047, 0.06, 0.0] };
+  },
+  crossbow(b, g) {
+    b.box(0.04, 0.06, 0.5, 0, 0.03, -0.1, 'skin2');
+    b.box(0.034, 0.1, 0.045, 0, -0.04, 0.04, 'dark', 0.3);
+    b.box(0.05, 0.1, 0.16, 0, 0.0, 0.22, 'skin2');
+    for (const s of [-1, 1]) {
+      b.box(0.24, 0.025, 0.03, s * 0.12, 0.045, -0.38, 'skin', 0, s * 0.35);
+      b.box(0.004, 0.004, 0.26, s * 0.12, 0.06, -0.26, 'string', 0, -s * 0.85);
+    }
+    b.box(0.03, 0.04, 0.06, 0, 0.07, -0.1, 'dark');
+    const bolt = b.cyl(0.005, 0.34, 0, 0.068, -0.33, 'steel', 6);
+    g.userData.loaded = bolt;
+    g.userData.mag = [bolt];
+    return { muzzle: [0, 0.068, -0.5], st: [0.022, 0.03, -0.1] };
+  },
+  confetti(b, g) { // canon à confettis
+    b.cyl(0.04, 0.42, 0, 0.06, -0.24, 'skin', 14, 0.065);
+    for (let i = 0; i < 4; i++) b.cyl(0.044 + i * 0.005, 0.02, 0, 0.06, -0.1 - i * 0.1, 'skin2', 14);
+    b.box(0.034, 0.1, 0.045, 0, -0.03, 0.03, 'dark', 0.3);
+    b.box(0.04, 0.07, 0.2, 0, 0.02, 0.16, 'skin2');
+    const pump = b.box(0.05, 0.04, 0.1, 0, 0.01, -0.24, 'dark');
+    g.userData.pump = pump;
+    g.userData.mag = [];
+    return { muzzle: [0, 0.06, -0.47], st: [0.045, 0.06, -0.05] };
+  },
+  pan(b, g) { // poêle à frire (tenue par le manche)
+    b.box(0.022, 0.02, 0.2, 0, 0, 0.0, 'wood');
+    b.box(0.02, 0.018, 0.05, 0, 0, -0.12, 'metal');
+    b.cyl(0.12, 0.022, 0, 0.0, -0.26, 'skin', 22, 0.12, 0, Math.PI / 2);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 6, 22), M.metal);
+    rim.position.set(0, 0, -0.26); rim.rotation.y = Math.PI / 2;
+    g.add(rim);
+    g.userData.mag = [];
+    return { muzzle: [0, 0, -0.3], st: [0.012, 0.0, 0.0] };
+  },
 };
+
+// Projectiles visibles en vol
+export function buildProjectile(kind) {
+  const g = new THREE.Group();
+  const b = makeBuilder(g, {});
+  if (kind === 'rocket') {
+    b.cyl(0.04, 0.32, 0, 0, 0, 'warhead', 10);
+    b.cyl(0.04, 0.12, 0, 0, -0.22, 'warhead', 10, 0.002);
+    for (const r of [0, Math.PI / 2]) b.box(0.12, 0.004, 0.06, 0, 0, 0.15, 'dark', 0, 0).rotation.z = r;
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.35, 8).rotateX(-Math.PI / 2).translate(0, 0, 0.33), new THREE.MeshBasicMaterial({ color: 0xffa030, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+    g.add(flame);
+  } else {
+    b.cyl(0.006, 0.42, 0, 0, 0, 'steel', 6);
+    b.cyl(0.012, 0.04, 0, 0, -0.22, 'metal', 6, 0.001);
+    for (const r of [0, Math.PI / 2]) b.box(0.05, 0.002, 0.07, 0, 0, 0.17, 'string').rotation.z = r;
+  }
+  return g;
+}
 
 // ── Détails supplémentaires (rails, molettes, crans…) ───────────────────
 const rail = (b, n, x, y, z0, step = 0.012, w = 0.022) => { for (let i = 0; i < n; i++) b.box(w, 0.006, 0.006, x, y, z0 - i * step, 'dark'); };
@@ -593,7 +835,7 @@ function solveArm(arm, S, T, side) {
   arm.hand.quaternion.copy(arm.fore.quaternion);
 }
 
-const LEFT_Z = { rifle: -0.28, sniper: -0.3, smg: -0.2, shotgun: -0.28, pistol: -0.02, knife: null };
+const LEFT_Z = { rifle: -0.28, sniper: -0.3, smg: -0.2, shotgun: -0.28, lmg: -0.3, launcher: -0.26, pistol: -0.02, knife: null };
 const _S = new THREE.Vector3(), _T = new THREE.Vector3();
 
 /**

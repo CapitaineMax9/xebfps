@@ -43,7 +43,7 @@ function thumbImg(item, weaponId, cls = 'thumb') {
   img.className = cls;
   img.alt = '';
   img.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-  lazyThumb(img, item, weaponId);
+  lazyThumb(img, item ? { ...item, seed: 0, float: Math.round(item.float * 10) / 10 } : item, weaponId);
   return img;
 }
 
@@ -117,6 +117,7 @@ export function showTab(tab) {
   if (tab === 'cases') renderCases();
   if (tab === 'tradeup') renderTradeUp();
   if (tab === 'settings') renderSettings();
+  if (tab === 'top') renderTop();
 }
 
 export function showMenu(tab) {
@@ -337,8 +338,9 @@ function renderCases() {
     const el = document.createElement('div');
     el.className = 'case-card';
     const awps = c.items.filter((id) => SKINS[id].weapon === 'awp').map((id) => SKINS[id].name);
+    const weapons = [...new Set(c.items.map((id) => (SKINS[id].weapon === 'knife' ? '★ Couteaux' : weaponLabel(SKINS[id].weapon))))];
     el.innerHTML = `<div class="case-art"><div class="case-box" style="background:linear-gradient(160deg, ${c.color}, #1a1208)"></div></div>
-      ${c.tag ? `<span class="case-tag">${esc(c.tag)}</span>` : ''}<h4>${esc(c.name)}</h4><div class="price">${c.price} ◈</div><p class="hint">${c.items.length} objets · AWP : ${awps.map(esc).join(', ')}</p>`;
+      ${c.tag ? `<span class="case-tag">${esc(c.tag)}</span>` : ''}<h4>${esc(c.name)}</h4><div class="price">${c.price} ◈</div><p class="hint">${c.items.length} objets · ${awps.length ? 'AWP : ' + awps.map(esc).join(', ') : esc(weapons.join(', '))}</p>`;
     el.onclick = () => { A.playUi(); showCase(c); };
     list.appendChild(el);
   }
@@ -350,9 +352,10 @@ function showCase(c) {
   d.classList.remove('hidden');
   const odds = RARITY_ORDER.map((r) => `<span><i style="background:${RARITIES[r].color}"></i>${esc(RARITIES[r].name)} ${RARITIES[r].weight}%</span>`).join('');
   d.innerHTML = `<div class="cd-head"><button class="btn small" id="cd-back">← Retour</button><h2>${esc(c.name)}</h2>
-    <button class="btn primary" id="cd-open">Ouvrir (${c.price} ◈)</button><div class="odds">${odds}</div></div><div class="item-grid" id="cd-grid"></div>`;
+    <div class="open-btns">${[1, 5, 10, 100].map((n) => `<button class="btn ${n === 1 ? 'primary' : ''}" data-n="${n}">x${n} <small>${(c.price * n).toLocaleString('fr-FR')} ◈</small></button>`).join('')}</div>
+    <div class="odds">${odds}</div></div><div class="item-grid" id="cd-grid"></div>`;
   $('cd-back').onclick = renderCases;
-  $('cd-open').onclick = () => openCase(c);
+  d.querySelectorAll('[data-n]').forEach((b) => { b.onclick = () => { const n = +b.dataset.n; if (n === 1) openCase(c); else openMany(c, n); }; });
   const grid = $('cd-grid');
   const sorted = c.items.slice().sort((a, b) => RARITY_ORDER.indexOf(SKINS[a].rarity) - RARITY_ORDER.indexOf(SKINS[b].rarity));
   for (const id of sorted) {
@@ -439,9 +442,90 @@ async function openCase(c) {
   };
 }
 
+// Ouverture de plusieurs caisses d'un coup : grille de résultats
+async function openMany(c, n) {
+  if (opening) return;
+  const prof = P.profile();
+  if (prof.credits < c.price * n) { toast(`Pas assez de crédits : il te faut ${(c.price * n).toLocaleString('fr-FR')} ◈ pour ${n} caisses.`); return; }
+  opening = true;
+  A.initAudio();
+  const res = await request('openCase', { caseId: c.id, n });
+  if (res.error) { opening = false; toast(res.error); return; }
+  const items = res.items || [res.item];
+  const order = (it) => RARITY_ORDER.indexOf(SKINS[it.skin].rarity);
+  $('op-title').textContent = `${n} × ${c.name}`;
+  $('roulette').classList.add('hidden');
+  const box = $('op-result');
+  box.classList.remove('hidden');
+  box.innerHTML = '<div class="many-sum" id="many-sum"></div><div class="many-grid" id="many-grid"></div><div class="btns" id="many-btns"></div>';
+  $('opening').classList.remove('hidden');
+  const grid = $('many-grid');
+  // révélation rapide, dans l'ordre du tirage
+  const step = n >= 100 ? 18 : 70;
+  let best = items[0];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const s = SKINS[it.skin];
+    if (order(it) > order(best) || (order(it) === order(best) && it.float < best.float)) best = it;
+    const card = document.createElement('div');
+    card.className = 'many-item';
+    card.style.borderColor = RARITIES[s.rarity].color;
+    card.style.order = String(10 - order(it));
+    if (s.rarity === 'gold') card.innerHTML = '<div class="thumb gold-star">★</div>';
+    else card.appendChild(thumbImg(it));
+    card.insertAdjacentHTML('beforeend', `<div class="rn" style="color:${RARITIES[s.rarity].color}">${esc(weaponLabel(s.weapon))} | ${esc(s.name)}</div>`);
+    card.onclick = () => openItem(it, (add) => add('Fermer', '', closeModal));
+    grid.appendChild(card);
+    if (order(it) >= 2) A.playReveal(s.rarity); else if (i % 3 === 0) A.playTick(1 + i / items.length);
+    await new Promise((r) => setTimeout(r, step));
+  }
+  // résumé
+  const counts = RARITY_ORDER.map((r) => [r, items.filter((it) => SKINS[it.skin].rarity === r).length]).filter(([, k]) => k);
+  const total = items.reduce((a, it) => a + itemValue(it), 0);
+  const cheap = items.filter((it) => order(it) <= 1);
+  const cheapValue = cheap.reduce((a, it) => a + itemValue(it), 0);
+  const bs = SKINS[best.skin];
+  $('many-sum').innerHTML = `<div class="many-best" style="border-color:${RARITIES[bs.rarity].color}"><img alt="" src="${thumbnail(best, null, 384, 220)}"><div><div style="color:${RARITIES[bs.rarity].color};font-weight:700">Meilleur objet · ${esc(RARITIES[bs.rarity].name)}</div><h3>${esc(itemFullName(best))}</h3><div class="hint">${esc(wearOf(best.float).name)} · float ${best.float.toFixed(4)}</div></div></div>
+    <div class="many-counts">${counts.map(([r, k]) => `<span style="color:${RARITIES[r].color}">${k} × ${esc(RARITIES[r].name)}</span>`).join('')}<span>Valeur totale : <b style="color:var(--acc)">${total.toLocaleString('fr-FR')} ◈</b> (payé ${(c.price * n).toLocaleString('fr-FR')} ◈)</span></div>`;
+  const btns = $('many-btns');
+  const add = (label, cls, fn) => { const b = document.createElement('button'); b.className = 'btn ' + cls; b.textContent = label; b.onclick = fn; btns.appendChild(b); };
+  if (cheap.length) add(`Vendre les ${cheap.length} objets Militaire et Restreint (+${cheapValue.toLocaleString('fr-FR')} ◈)`, 'danger', async () => {
+    const r = await request('sellMany', { uids: cheap.map((it) => it.uid) });
+    if (r.error) { toast(r.error); return; }
+    toast(`${r.count} objets vendus : +${r.value.toLocaleString('fr-FR')} ◈`);
+    for (const el of grid.children) if (+el.style.order >= 9) el.style.opacity = '0.25';
+    btns.firstChild.disabled = true;
+  });
+  add(`Rouvrir x${n} (${(c.price * n).toLocaleString('fr-FR')} ◈)`, '', () => { closeOpening(); openMany(c, n); });
+  add('Fermer', 'primary', closeOpening);
+  opening = false;
+}
+
 function closeOpening() {
+  $('roulette').classList.remove('hidden');
   $('opening').classList.add('hidden');
   renderCredits();
+}
+
+// ── Classement ───────────────────────────────────────────────────────────
+const TOP_CATS = [['kills', 'Kills'], ['wins', 'Victoires'], ['kd', 'K/D'], ['hs', 'Headshots %']];
+let topCat = 'kills';
+async function renderTop(cat = topCat) {
+  topCat = cat;
+  const cats = $('top-cats');
+  cats.innerHTML = TOP_CATS.map(([k, l]) => `<button class="btn small ${k === cat ? 'primary' : ''}" data-cat="${k}">${l}</button>`).join('');
+  cats.querySelectorAll('[data-cat]').forEach((b) => { b.onclick = () => renderTop(b.dataset.cat); });
+  $('top-hint').textContent = (cat === 'kd' || cat === 'hs' ? 'Il faut au moins 20 kills pour apparaître dans ce classement. ' : '') +
+    'Seuls les comptes enregistrés sont classés.' + (P.profile().registered ? '' : ' Crée un compte (onglet JOUER) pour y apparaître !');
+  const r = await request('top', { cat });
+  if (r.error) { $('top-table').innerHTML = `<tr><td>${esc(r.error)}</td></tr>`; return; }
+  if (topCat !== cat) return;
+  const fmtV = (v) => (cat === 'kd' ? v.toFixed(2) : cat === 'hs' ? v.toFixed(1) + ' %' : v.toLocaleString('fr-FR'));
+  const medal = (n) => (n === 1 ? '🥇' : n === 2 ? '🥈' : n === 3 ? '🥉' : n);
+  const head = `<tr><th></th><th>Joueur</th><th>${esc(TOP_CATS.find((c) => c[0] === cat)[1])}</th><th>Kills</th><th>Morts</th><th>K/D</th><th>HS%</th><th>Victoires</th><th>Matchs</th></tr>`;
+  const row = (e) => `<tr class="${e.me ? 'me' : ''}"><td class="rank">${medal(e.rank)}</td><td>${esc(e.name)}</td><td><b>${fmtV(e.value)}</b></td><td>${e.kills}</td><td>${e.deaths}</td><td>${(e.kills / Math.max(1, e.deaths)).toFixed(2)}</td><td>${e.kills ? Math.round(e.hs / e.kills * 100) : 0}%</td><td>${e.wins}</td><td>${e.matches}</td></tr>`;
+  $('top-table').innerHTML = head + (r.top.length ? r.top.map(row).join('') : '<tr><td colspan="9" class="hint" style="text-align:center">Personne pour l\'instant — sois le premier !</td></tr>');
+  $('top-me').innerHTML = r.me && r.me.rank > 50 ? `<table class="sb-table top-table">${row({ ...r.me, me: true })}</table>` : (r.me ? '' : (P.profile().registered ? '<p class="hint">Tu n\'apparais pas encore dans ce classement.</p>' : ''));
 }
 
 // ── Contrat d'échange ────────────────────────────────────────────────────

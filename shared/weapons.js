@@ -69,18 +69,146 @@ export const WEAPONS = {
     spread: { base: 0.085, scoped: 0.0012, move: 0.16, air: 0.3, crouch: 0.85, shot: 0, recover: 6 },
     recoil: { v: 0.045, h: 0.006, first: 0.045 }, sound: 'awp',
   },
+
+  // ── Fusils d'assaut ────────────────────────────────────────────────────
+  famas: {
+    id: 'famas', name: 'FAMAS', slot: 1, kind: 'rifle', auto: false, burst: 3, burstDelay: 0.065,
+    damage: 30, rangeMod: 0.96, range: 140, fireDelay: 0.38, mag: 25, reserve: 90, reload: 3.3, draw: 0.7,
+    speed: 5.84, spread: { base: 0.0045, move: 0.1, air: 0.24, crouch: 0.75, shot: 0.004, recover: 5 },
+    recoil: { v: 0.011, h: 0.007, first: 0 }, sound: 'famas',
+  },
+  galil: {
+    id: 'galil', name: 'Galil AR', slot: 1, kind: 'rifle', auto: true,
+    damage: 30, rangeMod: 0.97, range: 140, fireDelay: 0.09, mag: 35, reserve: 90, reload: 3.0, draw: 0.7,
+    speed: 5.84, spread: { base: 0.005, move: 0.11, air: 0.25, crouch: 0.75, shot: 0.006, recover: 5 },
+    recoil: { v: 0.012, h: 0.01, first: 0 }, sound: 'ak',
+  },
+  aug: {
+    id: 'aug', name: 'AUG', slot: 1, kind: 'rifle', auto: true,
+    damage: 28, rangeMod: 0.98, range: 150, fireDelay: 0.09, mag: 30, reserve: 90, reload: 3.8, draw: 0.8,
+    speed: 5.5, scopedSpeed: 4.5, scope: [56],
+    spread: { base: 0.0045, scoped: 0.0016, move: 0.1, air: 0.24, crouch: 0.75, shot: 0.005, recover: 5 },
+    recoil: { v: 0.0105, h: 0.007, first: 0 }, sound: 'silencedRifle',
+  },
+  // ── Mitraillettes ──────────────────────────────────────────────────────
+  mac10: {
+    id: 'mac10', name: 'MAC-10', slot: 1, kind: 'smg', auto: true,
+    damage: 29, rangeMod: 0.8, range: 60, fireDelay: 0.075, mag: 30, reserve: 100, reload: 2.6, draw: 0.5,
+    speed: 6.1, spread: { base: 0.012, move: 0.02, air: 0.08, crouch: 0.85, shot: 0.004, recover: 6 },
+    recoil: { v: 0.009, h: 0.008, first: 0.004 }, sound: 'smg',
+  },
+  ump45: {
+    id: 'ump45', name: 'UMP-45', slot: 1, kind: 'smg', auto: true,
+    damage: 35, rangeMod: 0.75, range: 60, fireDelay: 0.09, mag: 25, reserve: 100, reload: 3.5, draw: 0.6,
+    speed: 5.84, spread: { base: 0.01, move: 0.025, air: 0.09, crouch: 0.85, shot: 0.005, recover: 6 },
+    recoil: { v: 0.011, h: 0.007, first: 0.004 }, sound: 'smg',
+  },
+  mp7: {
+    id: 'mp7', name: 'MP7', slot: 1, kind: 'smg', auto: true,
+    damage: 29, rangeMod: 0.85, range: 70, fireDelay: 0.08, mag: 30, reserve: 120, reload: 3.1, draw: 0.6,
+    speed: 5.84, spread: { base: 0.008, move: 0.02, air: 0.09, crouch: 0.85, shot: 0.004, recover: 6 },
+    recoil: { v: 0.009, h: 0.006, first: 0.003 }, sound: 'smg',
+  },
+  // ── Lourdes + sniper automatique ───────────────────────────────────────
+  m249: {
+    id: 'm249', name: 'M249', slot: 1, kind: 'lmg', auto: true,
+    damage: 32, rangeMod: 0.97, range: 140, fireDelay: 0.08, mag: 100, reserve: 200, reload: 5.7, draw: 1.0,
+    speed: 4.95, spread: { base: 0.008, move: 0.15, air: 0.3, crouch: 0.7, shot: 0.007, recover: 4 },
+    recoil: { v: 0.009, h: 0.012, first: 0.003 }, sound: 'lmg',
+  },
+  xm1014: {
+    id: 'xm1014', name: 'XM1014', slot: 1, kind: 'shotgun', auto: true, pellets: 6, pelletSpread: 0.06,
+    damage: 20, rangeMod: 0.6, range: 30, fireDelay: 0.35, mag: 7, reserve: 32, reload: 0.45, shellReload: true, draw: 0.7,
+    speed: 5.5, spread: { base: 0.003, move: 0.02, air: 0.06, crouch: 0.9, shot: 0.004, recover: 6 },
+    recoil: { v: 0.04, h: 0.012, first: 0.04 }, sound: 'shotgun',
+  },
+  scar20: {
+    id: 'scar20', name: 'SCAR-20', slot: 1, kind: 'sniper', auto: false, semiAuto: true,
+    damage: 80, rangeMod: 0.98, range: 220, fireDelay: 0.25, mag: 20, reserve: 90, reload: 3.1, draw: 1.0,
+    speed: 5.08, scopedSpeed: 3.2, scope: [40, 15],
+    spread: { base: 0.05, scoped: 0.0025, move: 0.12, air: 0.25, crouch: 0.85, shot: 0.012, recover: 4 },
+    recoil: { v: 0.025, h: 0.006, first: 0.025 }, sound: 'sniper',
+  },
+  // ── Pistolets ──────────────────────────────────────────────────────────
+  fiveseven: {
+    id: 'fiveseven', name: 'Five-SeveN', slot: 2, kind: 'pistol', auto: false,
+    damage: 32, rangeMod: 0.91, range: 90, fireDelay: 0.15, mag: 20, reserve: 100, reload: 2.2, draw: 0.5,
+    speed: 6.1, spread: { base: 0.005, move: 0.03, air: 0.11, crouch: 0.8, shot: 0.012, recover: 5 },
+    recoil: { v: 0.013, h: 0.004, first: 0 }, sound: 'pistol',
+  },
+  tec9: {
+    id: 'tec9', name: 'Tec-9', slot: 2, kind: 'pistol', auto: false,
+    damage: 33, rangeMod: 0.83, range: 70, fireDelay: 0.12, mag: 18, reserve: 90, reload: 2.5, draw: 0.5,
+    speed: 6.1, spread: { base: 0.008, move: 0.025, air: 0.11, crouch: 0.8, shot: 0.014, recover: 5 },
+    recoil: { v: 0.014, h: 0.006, first: 0 }, sound: 'pistol',
+  },
+  r8: {
+    id: 'r8', name: 'R8 Revolver', slot: 2, kind: 'pistol', auto: false,
+    damage: 86, rangeMod: 0.9, range: 100, fireDelay: 0.5, mag: 8, reserve: 8, reload: 2.3, draw: 0.6,
+    speed: 5.84, spread: { base: 0.008, move: 0.08, air: 0.2, crouch: 0.8, shot: 0.06, recover: 3 },
+    recoil: { v: 0.06, h: 0.012, first: 0 }, sound: 'deagle',
+  },
+  dualies: {
+    id: 'dualies', name: 'Dual Berettas', slot: 2, kind: 'pistol', auto: false, dual: true,
+    damage: 38, rangeMod: 0.79, range: 70, fireDelay: 0.12, mag: 30, reserve: 120, reload: 3.8, draw: 0.6,
+    speed: 6.1, spread: { base: 0.009, move: 0.035, air: 0.12, crouch: 0.8, shot: 0.012, recover: 5 },
+    recoil: { v: 0.012, h: 0.006, first: 0 }, sound: 'pistol',
+  },
+  // ── Armes loufoques ────────────────────────────────────────────────────
+  zeus: {
+    id: 'zeus', name: 'Taser Zeus', slot: 2, kind: 'pistol', auto: false, taser: true,
+    damage: 500, rangeMod: 1, range: 3.6, fireDelay: 0.4, mag: 1, reserve: 0, reload: 1, draw: 0.5,
+    speed: 6.1, spread: { base: 0.001, move: 0.004, air: 0.02, crouch: 1, shot: 0, recover: 6 },
+    recoil: { v: 0.02, h: 0.004, first: 0 }, sound: 'zap',
+  },
+  railgun: {
+    id: 'railgun', name: 'Railgun', slot: 1, kind: 'sniper', auto: false, pierce: true,
+    damage: 160, rangeMod: 1, range: 250, fireDelay: 1.8, mag: 4, reserve: 16, reload: 3.0, draw: 1.0,
+    speed: 5.2, scopedSpeed: 3.0, scope: [45, 20],
+    spread: { base: 0.02, scoped: 0.0008, move: 0.08, air: 0.2, crouch: 0.85, shot: 0, recover: 6 },
+    recoil: { v: 0.05, h: 0.004, first: 0.05 }, sound: 'rail',
+  },
+  rpg: {
+    id: 'rpg', name: 'Lance-roquettes', slot: 1, kind: 'launcher', auto: false,
+    projectile: { speed: 32, gravity: 1.5, splash: 4.5, self: 0.5, model: 'rocket' },
+    damage: 130, rangeMod: 1, range: 200, fireDelay: 1.0, mag: 1, reserve: 8, reload: 2.6, draw: 1.0,
+    speed: 4.8, spread: { base: 0.004, move: 0.04, air: 0.08, crouch: 0.9, shot: 0, recover: 6 },
+    recoil: { v: 0.06, h: 0.01, first: 0.06 }, sound: 'rpg',
+  },
+  crossbow: {
+    id: 'crossbow', name: 'Arbalète', slot: 1, kind: 'launcher', auto: false,
+    projectile: { speed: 75, gravity: 6, splash: 0, model: 'bolt' },
+    damage: 105, rangeMod: 1, range: 200, fireDelay: 1.2, mag: 1, reserve: 25, reload: 1.1, draw: 0.8,
+    speed: 5.6, spread: { base: 0.002, move: 0.03, air: 0.08, crouch: 0.8, shot: 0, recover: 6 },
+    recoil: { v: 0.02, h: 0.004, first: 0.02 }, sound: 'bow',
+  },
+  confetti: {
+    id: 'confetti', name: 'Lance-confettis', slot: 1, kind: 'shotgun', auto: false, pellets: 16, pelletSpread: 0.09, confetti: true,
+    damage: 9, rangeMod: 0.5, range: 18, fireDelay: 0.6, mag: 6, reserve: 30, reload: 0.4, shellReload: true, draw: 0.6,
+    speed: 6.1, spread: { base: 0.004, move: 0.02, air: 0.05, crouch: 0.9, shot: 0, recover: 6 },
+    recoil: { v: 0.03, h: 0.01, first: 0.03 }, sound: 'party',
+  },
+  pan: {
+    id: 'pan', name: 'Poêle', slot: 3, kind: 'knife', speed: 6.2,
+    damage: 55, heavyDamage: 95, backstab: 120, heavyBackstab: 200,
+    range: 1.85, heavyRange: 1.75, fireDelay: 0.6, heavyDelay: 1.2, draw: 0.4, sound: 'bonk',
+  },
 };
 
-export const PRIMARIES = ['ak47', 'm4a1s', 'awp', 'ssg08', 'mp9', 'p90', 'nova'];
-export const SECONDARIES = ['usp', 'glock', 'deagle'];
-export const SKINNABLE = ['knife', 'glock', 'usp', 'deagle', 'mp9', 'p90', 'nova', 'ak47', 'm4a1s', 'ssg08', 'awp'];
+export const PRIMARIES = ['ak47', 'm4a1s', 'famas', 'galil', 'aug', 'awp', 'ssg08', 'scar20', 'mp9', 'mac10', 'mp7', 'ump45', 'p90', 'nova', 'xm1014', 'm249', 'railgun', 'rpg', 'crossbow', 'confetti'];
+export const SECONDARIES = ['usp', 'glock', 'deagle', 'fiveseven', 'tec9', 'r8', 'dualies', 'zeus'];
+export const MELEES = ['knife', 'pan'];
+export const SKINNABLE = ['knife', 'pan', 'glock', 'usp', 'deagle', 'fiveseven', 'tec9', 'r8', 'dualies', 'zeus', 'mp9', 'mac10', 'mp7', 'ump45', 'p90', 'nova', 'xm1014', 'confetti', 'ak47', 'm4a1s', 'famas', 'galil', 'aug', 'm249', 'ssg08', 'scar20', 'awp', 'railgun', 'rpg', 'crossbow'];
+
+// Délai minimal entre deux tirs (rafales comprises), utilisé pour la vérification côté serveur
+export function minFireDelay(w) { return w.burst ? Math.min(w.burstDelay, w.fireDelay) : w.fireDelay; }
 
 // Décalage de recul (en radians) pour le tir n° i d'une rafale : [pitch, yaw]
 // Pattern déterministe et apprenable : montée verticale puis oscillation latérale.
 export function recoilOffset(w, i) {
   const r = w.recoil;
   if (!r || i <= 0) return [0, 0];
-  if (w.kind === 'sniper' || w.kind === 'shotgun' || w.kind === 'pistol') {
+  if (w.kind === 'sniper' || w.kind === 'shotgun' || w.kind === 'pistol' || w.kind === 'launcher') {
     return [r.v * Math.min(i, 4), r.h * Math.sin(i * 1.7) * 0.5];
   }
   const rise = Math.min(i, 9);
@@ -99,7 +227,7 @@ export function currentSpread(w, st) {
   const s = w.spread;
   if (!s) return 0;
   let base = s.base;
-  if (w.kind === 'sniper' && st.scoped) base = s.scoped;
+  if (st.scoped && s.scoped !== undefined) base = s.scoped;
   let v = base + s.move * Math.min(1, st.speedRatio) * (w.kind === 'sniper' && !st.scoped ? 0.5 : 1);
   if (!st.onGround) v += s.air;
   if (st.crouch && st.onGround) v *= s.crouch;

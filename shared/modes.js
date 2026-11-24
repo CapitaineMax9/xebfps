@@ -1,5 +1,5 @@
 // Modes de jeu
-export const GUNGAME_LADDER = ['mp9', 'p90', 'nova', 'm4a1s', 'ak47', 'ssg08', 'awp', 'deagle', 'glock', 'knife'];
+export const GUNGAME_LADDER = ['mp7', 'ump45', 'xm1014', 'famas', 'ak47', 'm249', 'aug', 'awp', 'railgun', 'rpg', 'crossbow', 'deagle', 'knife'];
 
 export const MODES = {
   ffa: {

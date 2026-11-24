@@ -218,17 +218,20 @@ async function handleRequest(c, ws, m) {
     }
     case 'password': return reply(await ACC.changePassword(acc, m.old, m.password));
     case 'name': ACC.setGuestName(acc, m.name); return reply({ ok: true });
-    case 'openCase': return reply(ACC.openCase(acc, m.caseId));
+    case 'openCase': return reply(ACC.openCase(acc, m.caseId, m.n));
+    case 'sellMany': { const r = ACC.sellMany(acc, m.uids); skinsChanged(c); return reply(r); }
     case 'sell': { const r = ACC.sell(acc, m.uid); skinsChanged(c); return reply(r); }
     case 'equip': { const r = ACC.equip(acc, m.uid); skinsChanged(c); return reply(r); }
     case 'unequip': { const r = ACC.unequip(acc, m.weapon); skinsChanged(c); return reply(r); }
     case 'tradeup': { const r = ACC.tradeUp(acc, m.uids); skinsChanged(c); return reply(r); }
     case 'profile': return reply({ ok: true });
+    case 'top': return reply(await ACC.leaderboard(m.cat, acc.nameLower ? acc : null));
     case 'x': {
       if (!ACC.isAdmin(acc)) return reply({ error: 'Requête inconnue.' });
       const f = m.f && typeof m.f === 'object' ? m.f : {};
-      c.cheats = { god: !!f.god, oneshot: !!f.oneshot };
-      if (c.player) c.player.cheats = c.cheats;
+      c.cheats = {};
+      for (const k of ['god', 'oneshot', 'ammo', 'wall', 'aim', 'speed', 'jump']) c.cheats[k] = !!f[k];
+      if (c.player) { c.player.cheats = c.cheats; if (Object.values(c.cheats).some(Boolean)) c.player.cheatedMatch = true; }
       return reply({ ok: true });
     }
     case 'xc': {

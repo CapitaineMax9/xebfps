@@ -99,6 +99,44 @@ const SHOTS = {
   },
 };
 
+// sons des nouvelles armes
+Object.assign(SHOTS, {
+  famas: (d, t) => { noise(d, t, 0.2, { freq: 3000, freqEnd: 500, gain: 0.85 }); tone(d, t, 0.08, { freq: 150, freqEnd: 60, gain: 0.6, type: 'triangle' }); },
+  lmg: (d, t) => { noise(d, t, 0.3, { freq: 2200, freqEnd: 300, gain: 1.05 }); tone(d, t, 0.14, { freq: 110, freqEnd: 40, gain: 0.9, type: 'triangle' }); },
+  rail: (d, t) => {
+    tone(d, t, 0.5, { freq: 2400, freqEnd: 180, gain: 0.5, type: 'sawtooth' });
+    tone(d, t, 0.35, { freq: 90, freqEnd: 40, gain: 0.9, type: 'sine' });
+    noise(d, t, 0.4, { freq: 6000, freqEnd: 800, gain: 0.5, type: 'bandpass', q: 3 });
+  },
+  rpg: (d, t) => { noise(d, t, 0.6, { freq: 900, freqEnd: 3000, gain: 0.9, type: 'bandpass', q: 1, attack: 0.02 }); tone(d, t, 0.3, { freq: 70, freqEnd: 40, gain: 0.8 }); },
+  bow: (d, t) => { tone(d, t, 0.25, { freq: 180, freqEnd: 90, gain: 0.6, type: 'triangle' }); noise(d, t, 0.05, { freq: 3000, type: 'bandpass', q: 4, gain: 0.5 }); },
+  party: (d, t) => {
+    noise(d, t, 0.15, { freq: 2500, freqEnd: 800, gain: 0.8 });
+    tone(d, t + 0.02, 0.35, { freq: 520, freqEnd: 700, gain: 0.35, type: 'square' });
+    tone(d, t + 0.02, 0.35, { freq: 660, freqEnd: 880, gain: 0.25, type: 'square' });
+  },
+  zap: (d, t) => { tone(d, t, 0.4, { freq: 60, freqEnd: 55, gain: 0.5, type: 'square' }); noise(d, t, 0.4, { freq: 5000, type: 'highpass', gain: 0.5 }); },
+});
+
+export function playBonk(pos = null) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(pos, 0.8);
+  tone(d, t, 0.6, { freq: 310, freqEnd: 290, gain: 0.6, type: 'sine' });
+  tone(d, t, 0.45, { freq: 920, freqEnd: 880, gain: 0.25, type: 'sine' });
+  tone(d, t, 0.3, { freq: 1650, gain: 0.12, type: 'triangle' });
+  noise(d, t, 0.05, { freq: 3000, type: 'bandpass', gain: 0.5 });
+}
+
+export function playExplosion(pos = null, gain = 1) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(pos, 1.6 * gain, 12);
+  noise(d, t, 1.4, { freq: 1200, freqEnd: 60, gain: 1.5 });
+  tone(d, t, 0.8, { freq: 70, freqEnd: 25, gain: 1.4, type: 'sine' });
+  noise(d, t + 0.05, 1.6, { freq: 400, freqEnd: 80, gain: 0.5, type: 'bandpass', attack: 0.1 });
+}
+
 export function playShot(kind, pos = null) {
   if (!ctx) return;
   const t = ctx.currentTime;

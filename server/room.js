@@ -2,9 +2,9 @@
 import { TICK_RATE, SNAPSHOT_RATE, MAX_REWIND, PLAYER, CREDITS } from '../shared/constants.js';
 import { MAPS } from '../shared/maps.js';
 import { MODES, ggLevelWeapon, GUNGAME_LADDER } from '../shared/modes.js';
-import { WEAPONS, PRIMARIES, SECONDARIES } from '../shared/weapons.js';
+import { WEAPONS, PRIMARIES, SECONDARIES, MELEES, minFireDelay } from '../shared/weapons.js';
 import { SKINS } from '../shared/skins.js';
-import { raycastMap, rayPlayer, HIT_HEAD, HIT_MULT } from '../shared/raycast.js';
+import { raycastMap, rayPlayer, lineOfSight, HIT_HEAD, HIT_MULT } from '../shared/raycast.js';
 import { createBody, eyeHeight } from '../shared/physics.js';
 import { NavGrid } from './nav.js';
 import { BotBrain, BOT_NAMES } from './bot.js';
@@ -19,6 +19,12 @@ function navFor(mapId) {
 
 const now = () => performance.now();
 const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+// un joueur avec au moins un outil privé actif ne compte pas dans le classement
+const cheating = (p) => {
+  const on = !!p.cheats && Object.values(p.cheats).some(Boolean);
+  if (on) p.cheatedMatch = true;
+  return on;
+};
 let nextPlayerId = 1;
 
 function sanitizeSkins(skins) {
@@ -99,6 +105,8 @@ export class Room {
     this.mapIndex = 0;
     this.mapId = this.mapRotation[0];
     this.players = new Map();
+    this.projectiles = [];
+    this.projSeq = 0;
     this.state = 'idle';
     this.matchStart = 0;
     this.matchEnd = 0;
@@ -170,8 +178,9 @@ export class Room {
       skins.knife = { skin: k.id, float: Math.random() * (k.maxF - k.minF) + k.minF, seed: Math.floor(Math.random() * 1000), st: false, kills: 0 };
     }
     p.skins = skins;
-    const prim = ['ak47', 'm4a1s', 'awp', 'ak47', 'm4a1s', 'mp9', 'p90', 'ssg08', 'awp', 'nova'];
-    p.loadout = { primary: prim[Math.floor(Math.random() * prim.length)], secondary: SECONDARIES[Math.floor(Math.random() * SECONDARIES.length)] };
+    const prim = ['ak47', 'm4a1s', 'awp', 'ak47', 'm4a1s', 'mp9', 'p90', 'ssg08', 'awp', 'nova', 'famas', 'galil', 'aug', 'mac10', 'mp7', 'ump45', 'm249', 'xm1014', 'scar20', 'railgun', 'rpg', 'crossbow', 'confetti'];
+    const secs = ['usp', 'glock', 'deagle', 'fiveseven', 'tec9', 'r8', 'dualies'];
+    p.loadout = { primary: prim[Math.floor(Math.random() * prim.length)], secondary: secs[Math.floor(Math.random() * secs.length)], melee: Math.random() < 0.2 ? 'pan' : 'knife' };
     this.assignTeam(p);
     this.players.set(p.id, p);
     this.broadcast({ t: 'pjoin', p: p.info() });
@@ -228,7 +237,8 @@ export class Room {
     if (typeof lo !== 'object') return;
     const prim = PRIMARIES.includes(lo.primary) ? lo.primary : p.loadout.primary;
     const sec = SECONDARIES.includes(lo.secondary) ? lo.secondary : p.loadout.secondary;
-    p.loadout = { primary: prim, secondary: sec };
+    const mel = MELEES.includes(lo.melee) ? lo.melee : (p.loadout.melee || 'knife');
+    p.loadout = { primary: prim, secondary: sec, melee: mel };
     // Dans les premières secondes après l'apparition on peut changer directement
     if (applyNow && this.cfg.choice && p.alive && !p.hasShot && now() - p.spawnedAt < 10000) {
       p.weapons = this.weaponsFor(p);
@@ -243,7 +253,7 @@ export class Room {
       const w = ggLevelWeapon(p.ggLevel);
       return w === 'knife' ? ['knife'] : [w, 'knife'];
     }
-    return [p.loadout.primary, p.loadout.secondary, 'knife'];
+    return [p.loadout.primary, p.loadout.secondary, MELEES.includes(p.loadout.melee) ? p.loadout.melee : 'knife'];
   }
 
   // ── Match ────────────────────────────────────────────────────────────────
@@ -256,8 +266,9 @@ export class Room {
     this.matchStart = now();
     this.matchEnd = this.matchStart + this.cfg.timeLimit * 1000;
     this.teamScore = [0, 0];
+    this.projectiles = [];
     for (const p of this.players.values()) {
-      p.kills = 0; p.deaths = 0; p.hs = 0; p.assists = 0; p.ggLevel = 0; p.ggKills = 0; p.streak = 0;
+      p.kills = 0; p.deaths = 0; p.hs = 0; p.assists = 0; p.ggLevel = 0; p.ggKills = 0; p.streak = 0; p.cheatedMatch = false;
       p.alive = false;
       p.damageBy.clear();
       if (p.brain) p.brain.reset();
@@ -297,7 +308,7 @@ export class Room {
       if (won) { n += CREDITS.win; why.push('victoire'); }
       if (top.includes(p.id) && !this.cfg.teams) { n += CREDITS.podium; why.push('podium'); }
       const total = ACC.reward(p.acc, n);
-      ACC.recordMatch(p.acc, won);
+      ACC.recordMatch(p.acc, won, !(cheating(p) || p.cheatedMatch));
       p.send({ t: 'credits', n, why: 'Fin de match : ' + why.join(' + '), total });
       const item = ACC.drop(p.acc);
       if (item) p.send({ t: 'drop', item });
@@ -377,6 +388,7 @@ export class Room {
         if (p.history.length > 40) p.history.shift();
       }
     }
+    this.stepProjectiles(dt);
     this.snapAcc += dt;
     if (this.snapAcc >= 1 / SNAPSHOT_RATE - 1e-4) { this.snapAcc = Math.min(this.snapAcc - 1 / SNAPSHOT_RATE, 1 / SNAPSHOT_RATE); this.sendSnapshot(t); }
     this.boardAcc += dt;
@@ -481,7 +493,7 @@ export class Room {
     if (!has(WEAPONS, wid) || !p.weapons.includes(wid)) return false;
     const w = WEAPONS[wid];
     const t = now();
-    const delay = (heavy ? w.heavyDelay : w.fireDelay) * 1000;
+    const delay = (heavy ? w.heavyDelay : minFireDelay(w)) * 1000;
     const last = p.lastShot[wid] || 0;
     if (t - last < delay * 0.75) return false;
     p.lastShot[wid] = t;
@@ -523,6 +535,7 @@ export class Room {
     p.hasShot = true;
     p.protectUntil = 0;
     p.lastFired = now();
+    if (w.projectile) { for (const d0 of dirs) this.launch(p, wid, o, d0); return; }
     const boxes = this.map.boxes;
     const enemies = this.enemiesOf(p).map((q) => ({ q, s: this.stateAt(q, rt) }));
     const dmg = new Map();
@@ -534,6 +547,23 @@ export class Room {
       if (!(l > 0.5 && l < 1.5)) continue;
       dx /= l; dy /= l; dz /= l;
       const mh = raycastMap(boxes, o[0], o[1], o[2], dx, dy, dz, w.range);
+      if (w.pierce) {
+        // le railgun traverse tous les joueurs alignés (mais pas les murs)
+        const wallT = Math.min(mh.t, w.range);
+        let any = 0;
+        for (const { q, s } of enemies) {
+          const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, wallT, s.x, s.y, s.z, s.c, 0, s.yaw);
+          if (!r) continue;
+          any = 1;
+          if (this.cfg.hsOnly && r.g !== HIT_HEAD) continue;
+          const cur = dmg.get(q) || { amount: 0, hs: false };
+          cur.amount += p.cheats && p.cheats.oneshot ? 999 : w.damage * HIT_MULT[r.g];
+          if (r.g === HIT_HEAD) cur.hs = true;
+          dmg.set(q, cur);
+        }
+        ends.push([+(o[0] + dx * wallT).toFixed(2), +(o[1] + dy * wallT).toFixed(2), +(o[2] + dz * wallT).toFixed(2), any]);
+        continue;
+      }
       let best = mh.t, bestQ = null, bestG = -1;
       for (const { q, s } of enemies) {
         const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0, s.yaw);
@@ -560,7 +590,8 @@ export class Room {
   onKnife(p, m) {
     if (this.state !== 'playing' || !p.alive) return;
     const heavy = !!m.heavy;
-    if (!this.canFire(p, 'knife', heavy)) return;
+    const wid = has(WEAPONS, m.w) && WEAPONS[m.w].kind === 'knife' ? m.w : 'knife';
+    if (!this.canFire(p, wid, heavy)) return;
     const o = m.o, d = m.d;
     if (!Array.isArray(o) || !Array.isArray(d) || o.length !== 3 || d.length !== 3) return;
     if (![...o, ...d].every(Number.isFinite)) return;
@@ -568,11 +599,11 @@ export class Room {
     const t = now();
     let rt = Number(m.rt); if (!Number.isFinite(rt)) rt = t;
     rt = Math.max(t - MAX_REWIND, Math.min(t, rt));
-    this.knife(p, heavy, o, d, rt);
+    this.knife(p, heavy, o, d, rt, wid);
   }
 
-  knife(p, heavy, o, d, rt) {
-    const w = WEAPONS.knife;
+  knife(p, heavy, o, d, rt, wid = 'knife') {
+    const w = WEAPONS[wid];
     p.hasShot = true;
     p.protectUntil = 0;
     const l = Math.hypot(d[0], d[1], d[2]) || 1;
@@ -585,7 +616,7 @@ export class Room {
       const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0.22, s.yaw);
       if (r && r.t < best) { best = r.t; bestQ = q; }
     }
-    this.broadcast({ t: 'kn', id: p.id, heavy, hit: !!bestQ }, p);
+    this.broadcast({ t: 'kn', id: p.id, heavy, hit: !!bestQ, w: wid }, p);
     if (!bestQ) return;
     // coup dans le dos ?
     const fx = -Math.sin(bestQ.yaw), fz = -Math.cos(bestQ.yaw);
@@ -595,7 +626,89 @@ export class Room {
     const back = behind && diff < 1.2;
     let amount = back ? (heavy ? w.heavyBackstab : w.backstab) : (heavy ? w.heavyDamage : w.damage);
     if (p.cheats && p.cheats.oneshot) amount = 999;
-    this.damage(bestQ, p, amount, 'knife', false, { backstab: back });
+    this.damage(bestQ, p, amount, wid, false, { backstab: back });
+  }
+
+  // ── Projectiles (roquettes, carreaux d'arbalète) ─────────────────────────
+  launch(p, wid, o, d0) {
+    if (!Array.isArray(d0) || d0.length !== 3) return;
+    let [dx, dy, dz] = d0.map(Number);
+    const l = Math.hypot(dx, dy, dz);
+    if (!(l > 0.5 && l < 1.5)) return;
+    dx /= l; dy /= l; dz /= l;
+    const P = WEAPONS[wid].projectile;
+    const pr = {
+      id: ++this.projSeq, owner: p, wid, born: now(),
+      x: o[0] + dx * 0.4, y: o[1] + dy * 0.4 - 0.05, z: o[2] + dz * 0.4,
+      vx: dx * P.speed, vy: dy * P.speed, vz: dz * P.speed,
+    };
+    this.projectiles.push(pr);
+    this.broadcast({ t: 'pj', id: pr.id, by: p.id, w: wid, o: [pr.x, pr.y, pr.z].map((v) => +v.toFixed(3)), v: [pr.vx, pr.vy, pr.vz].map((v) => +v.toFixed(3)) });
+  }
+
+  stepProjectiles(dt) {
+    if (!this.projectiles.length) return;
+    const boxes = this.map.boxes;
+    const t = now();
+    for (const pr of this.projectiles) {
+      const P = WEAPONS[pr.wid].projectile;
+      const steps = Math.max(1, Math.ceil(Math.hypot(pr.vx, pr.vy, pr.vz) * dt / 0.8));
+      const h = dt / steps;
+      for (let i = 0; i < steps && !pr.done; i++) {
+        pr.vy -= P.gravity * h;
+        const sp = Math.hypot(pr.vx, pr.vy, pr.vz);
+        const L = sp * h, dx = pr.vx / sp, dy = pr.vy / sp, dz = pr.vz / sp;
+        const mh = raycastMap(boxes, pr.x, pr.y, pr.z, dx, dy, dz, L);
+        let best = mh.t, hitQ = null, hitG = -1;
+        const n = [mh.nx, mh.ny, mh.nz];
+        for (const q of this.players.values()) {
+          if (!q.alive || q === pr.owner) continue;
+          if (this.cfg.teams && q.team === pr.owner.team) continue;
+          const r = rayPlayer(pr.x, pr.y, pr.z, dx, dy, dz, Math.min(best, L), q.body.x, q.body.y, q.body.z, q.body.crouch, 0.05, q.yaw);
+          if (r && r.t < best) { best = r.t; hitQ = q; hitG = r.g; }
+        }
+        if (best <= L) {
+          pr.x += dx * best; pr.y += dy * best; pr.z += dz * best;
+          this.impact(pr, hitQ, hitG, hitQ ? [-dx, -dy, -dz] : n);
+        } else { pr.x += dx * L; pr.y += dy * L; pr.z += dz * L; }
+      }
+      if (!pr.done && (t - pr.born > 6000 || pr.y < -5)) this.impact(pr, null, -1, [0, 1, 0]);
+    }
+    this.projectiles = this.projectiles.filter((pr) => !pr.done);
+  }
+
+  impact(pr, hitQ, g, n) {
+    pr.done = true;
+    const w = WEAPONS[pr.wid], P = w.projectile, owner = pr.owner;
+    const pt = [pr.x, pr.y, pr.z];
+    const one = owner.cheats && owner.cheats.oneshot;
+    if (this.state === 'playing') {
+      if (P.splash > 0) {
+        const ox = pt[0] + n[0] * 0.15, oy = pt[1] + n[1] * 0.15, oz = pt[2] + n[2] * 0.15;
+        for (const q of [...this.players.values()]) {
+          if (!q.alive) continue;
+          if (this.cfg.teams && q !== owner && q.team === owner.team) continue;
+          const cy = q.body.y + (q.body.crouch ? 0.7 : 1.0);
+          const d = Math.hypot(q.body.x - ox, cy - oy, q.body.z - oz);
+          if (d > P.splash && q !== hitQ) continue;
+          if (q !== hitQ && !lineOfSight(this.map.boxes, ox, oy, oz, q.body.x, cy, q.body.z)) continue;
+          // souffle : projette le joueur (« rocket jump » possible)
+          const k = Math.max(0, 1 - d / P.splash);
+          const kx = (q.body.x - ox) / (d || 1), kz = (q.body.z - oz) / (d || 1);
+          const imp = [kx * 9 * k, 4 + 6 * k, kz * 9 * k];
+          if (q.isBot) { q.body.vx += imp[0]; q.body.vy = Math.max(q.body.vy, imp[1]); q.body.vz += imp[2]; q.body.onGround = false; }
+          else q.send({ t: 'kb', v: imp.map((v) => +v.toFixed(2)) });
+          if (this.cfg.hsOnly) continue;
+          let amount = q === hitQ ? w.damage : w.damage * k;
+          if (q === owner) amount *= P.self;
+          else if (one) amount = 999;
+          this.damage(q, owner, amount, pr.wid, false, {});
+        }
+      } else if (hitQ && !(this.cfg.hsOnly && g !== HIT_HEAD)) {
+        this.damage(hitQ, owner, one ? 999 : w.damage * HIT_MULT[g], pr.wid, g === HIT_HEAD, {});
+      }
+    }
+    this.broadcast({ t: 'px', id: pr.id, p: pt.map((v) => +v.toFixed(2)), n: n.map((v) => +v.toFixed(2)), hit: !!hitQ, boom: P.splash > 0 });
   }
 
   damage(q, attacker, amount, wid, hs, extra = {}) {
@@ -638,15 +751,15 @@ export class Room {
       a: assister ? assister.id : null, kh: killer.hp, streak: killer.streak,
     });
     // crédits, statistiques et compteur StatKill™
-    if (victim.acc) ACC.recordDeath(victim.acc);
+    if (victim.acc) ACC.recordDeath(victim.acc, !cheating(victim));
     if (killer.acc && !selfKill) {
       let n = CREDITS.kill;
       const why = ['kill'];
       if (hs) { n += CREDITS.headshot; why.push('headshot'); }
-      if (wid === 'knife') { n += CREDITS.knife; why.push('couteau'); }
+      if (WEAPONS[wid] && WEAPONS[wid].kind === 'knife') { n += CREDITS.knife; why.push(wid === 'pan' ? 'poêle' : 'couteau'); }
       if (extra.noscope) { n += CREDITS.noscope; why.push('no-scope'); }
       const total = ACC.reward(killer.acc, n);
-      const st = ACC.recordKill(killer.acc, wid, hs);
+      const st = ACC.recordKill(killer.acc, wid, hs, !cheating(killer));
       killer.send({ t: 'credits', n, why: why.join(' + '), w: wid, total, st });
       if (st !== null && killer.skins[wid]) killer.skins[wid].kills = st;
     }

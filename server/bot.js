@@ -158,7 +158,7 @@ export class BotBrain {
         if (hd < 1.7 && t >= this.nextFire && t >= this.reactAt) {
           const heavy = Math.random() < 0.4;
           this.nextFire = t + (heavy ? w.heavyDelay : w.fireDelay) * 1000 + 100;
-          room.knife(p, heavy, [b.x, ey, b.z], dirFromAngles(p.yaw, p.pitch), t);
+          room.knife(p, heavy, [b.x, ey, b.z], dirFromAngles(p.yaw, p.pitch), t, p.cur);
         }
       } else if (w.kind === 'sniper') {
         // s'arrête, zoome, tire
@@ -181,6 +181,8 @@ export class BotBrain {
         if (w.kind === 'smg' && hd > 18) { input.wx += dx / hd * 0.7; input.wz += dz / hd * 0.7; }
         if (this.crouchSpray && this.burst > 2) input.crouch = true;
         if (err < tol && t >= this.reactAt && t >= this.burstPauseUntil) wantFire = true;
+        // pas de roquette à bout portant (le bot se ferait exploser)
+        if (w.projectile && w.projectile.splash && hd < 6) { wantFire = false; input.wx -= dx / hd; input.wz -= dz / hd; }
       }
     } else {
       p.scoped = false;

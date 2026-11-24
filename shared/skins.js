@@ -1,4 +1,5 @@
 // Catalogue de skins, raretés, usures et caisses.
+import { WEAPONS } from './weapons.js';
 // Les motifs (pattern) sont générés procéduralement côté client (public/js/skinTex.js).
 
 export const RARITIES = {
@@ -142,10 +143,63 @@ add('kara_tigre', 'knife', 'Dent de Tigre', 'gold', 'tigertooth', ['#c98a1e', '#
 add('papi_damas', 'knife', 'Acier Damas', 'gold', 'damascus', ['#2a2c30', '#b8bec6', '#5a6a8a'], { knife: 'butterfly', fin: { metal: 0.95, rough: 0.18 } });
 add('flip_leopard', 'knife', 'Léopard', 'gold', 'leopard', ['#c9a060', '#2a1a0a', '#8a5a2a'], { knife: 'flip', fin: { metal: 0.5, rough: 0.35 } });
 
+// ── Caisse Arsenal (nouvelles armes classiques) ────────────────────────────────
+add('famas_sable', 'famas', 'Dune', 'milspec', 'camo', ['#c8b48a', '#a38a5f', '#7d6a48', '#e0d2b0']);
+add('galil_urbain', 'galil', 'Béton', 'milspec', 'digital', ['#8a8f96', '#5b6068', '#c3c7cc', '#3a3e44']);
+add('mac10_vague', 'mac10', 'Lagon', 'milspec', 'waves', ['#06303a', '#22c4d8', '#a0f0ff']);
+add('ump45_bois', 'ump45', 'Noyer', 'milspec', 'woodgrain', ['#4a2e18', '#9a6a3a']);
+add('mp7_topo', 'mp7', 'Relief', 'milspec', 'topo', ['#2a3a2a', '#d0e0a0', '#5a7a4a']);
+add('tec9_damier', 'tec9', 'Damier', 'milspec', 'checker', ['#141414', '#f0f0f0', '#ff3f3f']);
+add('fiveseven_bleu', 'fiveseven', 'Bleu Électrique', 'milspec', 'solid', ['#1f5fd0', '#0e2a6a'], { fin: { metal: 0.7, rough: 0.3 } });
+add('aug_ruche', 'aug', 'Ruche d\'Ambre', 'restricted', 'hex', ['#1a1408', '#f2a01e', '#3a2a10']);
+add('m249_jungle', 'm249', 'Jungle', 'restricted', 'camo', ['#2f4a1c', '#6b8a2e', '#1a2a0f', '#a3b85a']);
+add('xm1014_rouille', 'xm1014', 'Rouille', 'restricted', 'camo', ['#7a3b1a', '#a35a2a', '#3d1e0e', '#c48a4a']);
+add('r8_damas', 'r8', 'Damas', 'restricted', 'damascus', ['#2a2c30', '#b8bec6', '#5a6a8a'], { fin: { metal: 0.9, rough: 0.2 } });
+add('dualies_marbre', 'dualies', 'Marbre Blanc', 'restricted', 'marble', ['#f0f0f0', '#a0a0a8', '#2a2a30']);
+add('famas_koi', 'famas', 'Koï', 'classified', 'koi', ['#0d4a5a', '#5ad0e0', '#ff7a1f', '#ffffff']);
+add('scar20_givre', 'scar20', 'Givre', 'classified', 'marble', ['#e8f6ff', '#6cc3ff', '#1b4a7a'], { fin: { metal: 0.6, rough: 0.25 } });
+add('mp7_circuit', 'mp7', 'Circuit Imprimé', 'classified', 'circuit', ['#04140a', '#3fff9a', '#0c3a1e']);
+add('galil_azteque', 'galil', 'Aztèque', 'classified', 'tribal', ['#1a1410', '#e0a526', '#d42b2b', '#2ec4b6']);
+add('m249_dragon', 'm249', 'Wyrm Ardent', 'covert', 'dragonart', ['#f0e6d0', '#c0401a', '#2a0a06', '#d8b890', '#ffd23f']);
+add('aug_galaxie', 'aug', 'Nébuleuse', 'covert', 'galaxy', ['#05030f', '#3a6bff', '#ff4fd8', '#ffffff']);
+add('r8_orfeuille', 'r8', 'Feuille d\'Or', 'covert', 'goldleaf', ['#0e0e10', '#e0b23a', '#fff0a0'], { fin: { metal: 0.85, rough: 0.2 } });
+add('flip_fondu', 'knife', 'Fondu', 'gold', 'fade', ['#ffd23f', '#ff3fa4', '#7a3cff'], { knife: 'flip', fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
+add('kara_galaxie', 'knife', 'Galaxie', 'gold', 'galaxy', ['#05030f', '#3a6bff', '#ff4fd8', '#ffffff'], { knife: 'karambit', fin: { metal: 0.7, rough: 0.25 } });
+add('bayo_orfeuille', 'knife', 'Feuille d\'Or', 'gold', 'goldleaf', ['#0e0e10', '#e0b23a', '#fff0a0'], { knife: 'bayonet', fin: { metal: 0.9, rough: 0.15 } });
+
+// ── Caisse Loufoque (armes loufoques + poêles ★) ─────────────────────────────
+add('confetti_pastel', 'confetti', 'Bonbon', 'milspec', 'solid', ['#ffb0d8', '#b0e0ff'], { fin: { metal: 0.2, rough: 0.5 } });
+add('zeus_damier', 'zeus', 'Damier', 'milspec', 'checker', ['#111111', '#ffd23f']);
+add('crossbow_camo', 'crossbow', 'Chasseur', 'milspec', 'camo', ['#4a5a35', '#2e3a22', '#6d7a48', '#1f2616']);
+add('rpg_digital', 'rpg', 'Pixel Désert', 'milspec', 'digital', ['#c8a868', '#8a6a3a', '#e0c890', '#5a4a2a']);
+add('pan_cuivre', 'pan', 'Cuivre', 'milspec', 'solid', ['#c87a3a', '#8a4a1a'], { fin: { metal: 0.9, rough: 0.3 } });
+add('railgun_circuit', 'railgun', 'Surcharge', 'restricted', 'circuit', ['#020a14', '#22d3ff', '#0b2a40']);
+add('confetti_tiedye', 'confetti', 'Tie & Dye', 'restricted', 'tiedye', ['#ff3fa4', '#ffd23f', '#22e0ff', '#7a3cff']);
+add('crossbow_bois', 'crossbow', 'Ébène', 'restricted', 'woodgrain', ['#1a100a', '#5a3a20']);
+add('rpg_flammes', 'rpg', 'Brasier', 'restricted', 'flames', ['#1a0a05', '#ff4b12', '#ffd23f']);
+add('railgun_synth', 'railgun', 'Synthwave', 'classified', 'synth', ['#1a0638', '#ff3fa4', '#ffcf3f', '#22e0ff']);
+add('rpg_graffiti', 'rpg', 'Tag', 'classified', 'graffiti', ['#3a3a40', '#ff6a13', '#22e0ff', '#ff2ed1']);
+add('pan_pixel', 'pan', '8-Bits', 'classified', 'pixelart', ['#1a1030', '#ff4f6a', '#ffd23f', '#3ff0a0']);
+add('zeus_eclair', 'zeus', 'Haute Tension', 'classified', 'lightning', ['#120c24', '#ffd23f', '#fff6c0']);
+add('railgun_kaleido', 'railgun', 'Kaléidoscope', 'covert', 'kaleido', ['#0a0a1a', '#ff3fa4', '#22e0ff', '#ffd23f', '#7a3cff']);
+add('rpg_wyrm', 'rpg', 'Wyrm Royal', 'covert', 'dragonart', ['#efe2c0', '#2f7a3a', '#1a2a12', '#c9a86a', '#e0a526']);
+add('confetti_galaxie', 'confetti', 'Cosmos', 'covert', 'galaxy', ['#05030f', '#6a2cff', '#ff4fd8', '#ffffff']);
+add('pan_or', 'pan', 'Or Massif', 'gold', 'goldleaf', ['#8a6a10', '#ffd23f', '#fff6c0'], { fin: { metal: 1, rough: 0.12 } });
+add('pan_doppler', 'pan', 'Doppler', 'gold', 'doppler', ['#0a0a12', '#d0207a', '#3a2fd6'], { fin: { metal: 0.95, rough: 0.1 }, maxF: 0.08 });
+add('pan_fondu', 'pan', 'Fondu', 'gold', 'fade', ['#ffd23f', '#ff3fa4', '#7a3cff'], { fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
+
 export const SKINS = {};
 for (const s of S) SKINS[s.id] = s;
 
 export const CASES = [
+  {
+    id: 'loufoque', name: 'Caisse Loufoque', price: 350, color: '#ff3fa4', tag: 'POÊLES ★',
+    items: ['confetti_pastel', 'zeus_damier', 'crossbow_camo', 'rpg_digital', 'pan_cuivre', 'railgun_circuit', 'confetti_tiedye', 'crossbow_bois', 'rpg_flammes', 'railgun_synth', 'rpg_graffiti', 'pan_pixel', 'zeus_eclair', 'railgun_kaleido', 'rpg_wyrm', 'confetti_galaxie', 'pan_or', 'pan_doppler', 'pan_fondu'],
+  },
+  {
+    id: 'arsenal', name: 'Caisse Arsenal', price: 300, color: '#5a6a7a', tag: 'NOUVEAU',
+    items: ['famas_sable', 'galil_urbain', 'mac10_vague', 'ump45_bois', 'mp7_topo', 'tec9_damier', 'fiveseven_bleu', 'aug_ruche', 'm249_jungle', 'xm1014_rouille', 'r8_damas', 'dualies_marbre', 'famas_koi', 'scar20_givre', 'mp7_circuit', 'galil_azteque', 'm249_dragon', 'aug_galaxie', 'r8_orfeuille', 'flip_fondu', 'kara_galaxie', 'bayo_orfeuille'],
+  },
   {
     id: 'sniper', name: 'Caisse Sniper', price: 400, color: '#2a6adf', tag: '100 % AWP',
     items: ['awp_topo', 'awp_damier', 'awp_bois', 'awp_plan', 'awp_koi', 'awp_tiedye', 'awp_pixel', 'awp_toile', 'awp_azteque', 'awp_couchant', 'awp_wyrm', 'awp_orfeuille', 'awp_kaleido', 'flip_tigre', 'flip_damas', 'kara_toile', 'papi_kaleido'],
@@ -210,12 +264,11 @@ export function itemValue(item) {
 export function itemFullName(item) {
   const s = SKINS[item.skin];
   if (!s) return '?';
-  const base = s.weapon === 'knife' ? '★ ' + KNIVES[s.knife].name : weaponLabel(s.weapon);
+  const base = s.weapon === 'knife' ? '★ ' + KNIVES[s.knife].name : (s.rarity === 'gold' ? '★ ' : '') + weaponLabel(s.weapon);
   return (item.st ? 'StatKill™ ' : '') + base + ' | ' + s.name;
 }
 
-const LABELS = { knife: 'Couteau', glock: 'Glock-18', usp: 'USP-S', deagle: 'Desert Eagle', mp9: 'MP9', p90: 'P90', nova: 'Nova', ak47: 'AK-47', m4a1s: 'M4A1-S', ssg08: 'SSG 08', awp: 'AWP' };
-export function weaponLabel(id) { return LABELS[id] || id; }
+export function weaponLabel(id) { return WEAPONS[id] ? WEAPONS[id].name : id; }
 
 // Contrat d'échange : 10 objets d'une même rareté (hors ★) -> 1 objet de la rareté suivante
 export function tradeUpResult(items, rnd = Math.random) {
