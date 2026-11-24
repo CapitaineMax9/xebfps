@@ -180,15 +180,27 @@ async function onMessage(c, ws, data) {
 }
 
 // ── Requêtes de compte / d'économie (réponse avec le même rid) ────────────
-const authTries = new Map(); // ip -> { n, t }
-function authLimited(ip) {
-  const now = Date.now();
-  const e = authTries.get(ip) || { n: 0, t: now };
-  if (now - e.t > 60000) { e.n = 0; e.t = now; }
-  e.n++;
-  authTries.set(ip, e);
-  return e.n > 10;
+// Protection anti-force-brute : on ne compte QUE les essais ratés, et un
+// identifiant/mot de passe correct remet tout à zéro. Ainsi les vrais joueurs
+// (même plusieurs derrière le même wifi) ne sont jamais bloqués ; seuls les
+// essais répétés avec un mauvais mot de passe le sont.
+const authFails = new Map(); // clé -> { n, t }
+const IP_MAX = 40, IP_WIN = 300000;      // 40 échecs / 5 min par connexion internet
+const USER_MAX = 8, USER_WIN = 600000;   // 8 échecs / 10 min sur un même pseudo
+function authLocked(key, max, win) {
+  const e = authFails.get(key);
+  if (!e) return false;
+  if (Date.now() - e.t > win) { authFails.delete(key); return false; }
+  return e.n >= max;
 }
+function authFail(key, win) {
+  const now = Date.now();
+  const e = authFails.get(key);
+  if (!e || now - e.t > win) authFails.set(key, { n: 1, t: now });
+  else e.n++;
+  if (authFails.size > 5000) for (const [k, v] of authFails) if (now - v.t > IP_WIN) authFails.delete(k);
+}
+function authClear(...keys) { for (const k of keys) authFails.delete(k); }
 
 async function handleRequest(c, ws, m) {
   // par défaut, profil léger + seulement les objets ajoutés / retirés de l'inventaire
@@ -196,16 +208,22 @@ async function handleRequest(c, ws, m) {
   const acc = c.acc;
   switch (m.op) {
     case 'register': {
-      if (authLimited(c.ip)) return reply({ error: 'Trop de tentatives, réessaie dans une minute.' });
+      const ipKey = 'ip:' + c.ip;
+      if (authLocked(ipKey, IP_MAX, IP_WIN)) return reply({ error: 'Trop de tentatives ratées. Réessaie dans quelques minutes.' });
       const r = await ACC.register(acc, m.username, m.password);
-      if (r.error) return reply(r);
+      if (r.error) { authFail(ipKey, IP_WIN); return reply(r); }
+      authClear(ipKey);
       if (c.player) { c.player.name = acc.name; c.room.refreshPlayer(c.player); }
       return reply({ ok: true });
     }
     case 'login': {
-      if (authLimited(c.ip)) return reply({ error: 'Trop de tentatives, réessaie dans une minute.' });
+      const ipKey = 'ip:' + c.ip, userKey = 'u:' + String(m.username ?? '').trim().toLowerCase();
+      if (authLocked(userKey, USER_MAX, USER_WIN) || authLocked(ipKey, IP_MAX, IP_WIN)) {
+        return reply({ error: 'Trop de tentatives ratées. Vérifie ton pseudo et ton mot de passe, puis réessaie dans quelques minutes.' });
+      }
       const r = await ACC.login(m.username, m.password);
-      if (r.error) return reply(r);
+      if (r.error) { authFail(userKey, USER_WIN); authFail(ipKey, IP_WIN); return reply(r); }
+      authClear(userKey, ipKey);
       leave(c);
       c.acc = r.acc; c.token = r.token;
       return reply({ ok: true, token: r.token }, true);
