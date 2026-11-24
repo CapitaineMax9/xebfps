@@ -50,7 +50,7 @@ class FileStore {
 
   schedule() {
     if (this.timer) return;
-    this.timer = setTimeout(() => { this.timer = null; this.flush(); }, 800);
+    this.timer = setTimeout(() => { this.timer = null; this.flush(); }, 2000);
   }
 
   flush() {
@@ -134,7 +134,7 @@ class PgStore {
   async save(a) {
     this.cache.set(a.id, a);
     if (this.pending.has(a.id)) return;
-    this.pending.set(a.id, setTimeout(() => this.write(a.id), 800));
+    this.pending.set(a.id, setTimeout(() => this.write(a.id), 2000));
   }
 
   async write(id) {

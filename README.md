@@ -35,6 +35,9 @@ Choix de l'arme principale, du pistolet et de l'arme de corps à corps avec **B*
 - 8 caisses, **135 skins** dont **21 skins d'AWP**, des couteaux ★ et des **poêles ★** (Or Massif, Doppler, Fondu).
 - **Ouverture en masse** : x1 (avec la roulette), x5, x10 ou **x100** d'un coup, avec écran de résultats, meilleur objet et vente groupée des objets courants.
 - **Caisse Arsenal** et **Caisse Loufoque** pour les nouvelles armes.
+- Inventaire jusqu'à **10 000 objets**, avec pagination et 3 façons de vendre vite : **tout vendre par rareté**
+  (les objets équipés, StatKill™ et ★ sont protégés), **mode sélection** (cocher puis vendre) et un bouton
+  **« Vendre »** au survol de chaque objet.
 - **Caisse Sniper 100 % AWP** : 13 AWP (Wyrm Royal, Feuille d'Or, Kaléidoscope, Toile Pourpre, Aztèque, Koï…) + couteaux.
 - Caisses Prélude, Néon, Prédateur, Street et Safari pour toutes les autres armes ; 37 motifs générés procéduralement.
 - Raretés et probabilités : Militaire 79,92 %, Restreint 15,98 %, Classifié 3,2 %, Secret 0,64 %, ★ 0,26 %.

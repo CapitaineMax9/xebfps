@@ -49,7 +49,7 @@ function thumbImg(item, weaponId, cls = 'thumb') {
 
 function rarityColor(item) { return RARITIES[SKINS[item.skin].rarity].color; }
 
-function itemCard(item, { onClick, selected = false } = {}) {
+function itemCard(item, { onClick, selected = false, quickSell = null } = {}) {
   const s = SKINS[item.skin];
   const el = document.createElement('div');
   el.className = 'item' + (selected ? ' selected' : '');
@@ -63,8 +63,19 @@ function itemCard(item, { onClick, selected = false } = {}) {
     <div class="iwear"><span>${esc(wear.name)}</span><span>${item.float.toFixed(4)}</span></div>
     ${item.st ? '<span class="st-badge">StatKill™</span>' : ''}${P.isEquipped(item.uid) ? '<span class="eq-badge">ÉQUIPÉ</span>' : ''}`);
   if (onClick) el.onclick = () => onClick(item);
+  if (quickSell) {
+    const q = document.createElement('button');
+    q.className = 'qs';
+    q.title = 'Vendre tout de suite';
+    q.textContent = `Vendre +${itemValue(item)} ◈`;
+    q.onclick = (e) => { e.stopPropagation(); quickSell(item, el); };
+    el.appendChild(q);
+  }
   return el;
 }
+
+// Objets protégés de la vente en masse : équipés, StatKill™ et ★
+function isProtected(it) { return P.isEquipped(it.uid) || it.st || SKINS[it.skin].rarity === 'gold'; }
 
 // ════════════════════════════════════════════════════════════════════════
 export function initMenu(callbacks) {
@@ -104,8 +115,8 @@ export function initMenu(callbacks) {
   viewer = new Viewer($('preview-canvas'));
   // inventaire
   $('inv-filter').innerHTML = '<option value="all">Toutes les armes</option>' + SKINNABLE.map((w) => `<option value="${w}">${esc(weaponLabel(w))}</option>`).join('');
-  $('inv-filter').onchange = renderInventory;
-  $('inv-sort').onchange = renderInventory;
+  $('inv-filter').onchange = () => { invPage = 0; selected.clear(); renderInventory(); };
+  $('inv-sort').onchange = () => { invPage = 0; renderInventory(); };
   $('btn-tradeup').onclick = doTradeUp;
   renderSettings();
 }
@@ -261,6 +272,88 @@ export function updateRooms(list) {
 }
 
 // ── Inventaire ───────────────────────────────────────────────────────────
+const INV_PAGE = 120;
+let invPage = 0, selectMode = false;
+const selected = new Set();
+
+async function sellUids(uids, label) {
+  if (!uids.length) return;
+  const r = await request('sellMany', { uids });
+  if (r.error) { toast(r.error); return; }
+  for (const u of uids) selected.delete(u);
+  toast(`${label || r.count + ' objet(s) vendu(s)'} : +${r.value.toLocaleString('fr-FR')} ◈`);
+  A.playUi();
+  cb.onSkins();
+  renderInventory();
+}
+
+async function quickSell(it, el) {
+  const s = SKINS[it.skin];
+  if ((P.isEquipped(it.uid) || s.rarity === 'gold') && !confirm(`Vendre ${itemFullName(it)} (${P.isEquipped(it.uid) ? 'équipé' : 'objet ★'}) pour ${itemValue(it)} ◈ ?`)) return;
+  el.style.opacity = '0.3';
+  const r = await request('sell', { uid: it.uid });
+  if (r.error) { el.style.opacity = '1'; toast(r.error); return; }
+  if (P.isEquipped(it.uid) || r.value) cb.onSkins();
+  el.remove();
+  toast(`Vendu : +${r.value} ◈`, 1200);
+  renderSellBar();
+  $('inv-count').textContent = `${P.profile().inventory.length.toLocaleString('fr-FR')} / ${(P.profile().invMax || 10000).toLocaleString('fr-FR')} objets`;
+}
+
+function invItems() {
+  const filter = $('inv-filter').value;
+  const items = P.profile().inventory;
+  return filter === 'all' ? items.slice() : items.filter((i) => SKINS[i.skin].weapon === filter);
+}
+
+// Barre « tout vendre par rareté » (respecte le filtre d'arme, ignore les objets protégés)
+function renderSellBar() {
+  const bar = $('inv-sell');
+  const items = invItems();
+  bar.innerHTML = '';
+  const label = document.createElement('span');
+  label.className = 'hint';
+  label.textContent = 'Tout vendre :';
+  bar.appendChild(label);
+  for (const r of ['milspec', 'restricted', 'classified', 'covert']) {
+    const list = items.filter((i) => SKINS[i.skin].rarity === r && !isProtected(i));
+    if (!list.length) continue;
+    const v = list.reduce((a, i) => a + itemValue(i), 0);
+    const b = document.createElement('button');
+    b.className = 'btn small';
+    b.style.borderColor = RARITIES[r].color;
+    b.innerHTML = `<span style="color:${RARITIES[r].color}">${list.length} ${esc(RARITIES[r].name)}</span> +${v.toLocaleString('fr-FR')} ◈`;
+    b.onclick = () => {
+      if (!confirm(`Vendre ${list.length} objet(s) ${RARITIES[r].name} pour ${v.toLocaleString('fr-FR')} ◈ ?\n(Les objets équipés, StatKill™ et ★ sont conservés.)`)) return;
+      sellUids(list.map((i) => i.uid), `${list.length} ${RARITIES[r].name} vendus`);
+    };
+    bar.appendChild(b);
+  }
+  const sel = document.createElement('button');
+  sel.className = 'btn small' + (selectMode ? ' primary' : '');
+  sel.textContent = selectMode ? 'Quitter la sélection' : 'Sélectionner…';
+  sel.onclick = () => { selectMode = !selectMode; selected.clear(); renderInventory(); };
+  bar.appendChild(sel);
+  if (bar.children.length === 2) label.textContent = 'Rien à vendre en masse ici (les objets équipés, StatKill™ et ★ sont protégés).';
+}
+
+function renderSelBar(pageItems) {
+  const bar = $('inv-selbar');
+  bar.classList.toggle('hidden', !selectMode);
+  if (!selectMode) return;
+  const inv = P.profile().inventory;
+  const chosen = inv.filter((i) => selected.has(i.uid));
+  const v = chosen.reduce((a, i) => a + itemValue(i), 0);
+  bar.innerHTML = `<b>${chosen.length}</b> sélectionné(s) · <span style="color:var(--acc)">+${v.toLocaleString('fr-FR')} ◈</span>`;
+  const add = (label, cls, fn, dis = false) => { const b = document.createElement('button'); b.className = 'btn small ' + cls; b.textContent = label; b.onclick = fn; b.disabled = dis; bar.appendChild(b); };
+  add('Tout sélectionner (page)', '', () => { for (const i of pageItems) selected.add(i.uid); renderInventory(); });
+  add('Tout désélectionner', '', () => { selected.clear(); renderInventory(); }, !chosen.length);
+  add(`Vendre la sélection (+${v.toLocaleString('fr-FR')} ◈)`, 'danger', () => {
+    if (!confirm(`Vendre ${chosen.length} objet(s) pour ${v.toLocaleString('fr-FR')} ◈ ?`)) return;
+    sellUids(chosen.map((i) => i.uid));
+  }, !chosen.length);
+}
+
 function renderInventory() {
   const prof = P.profile();
   // équipement
@@ -274,20 +367,39 @@ function renderInventory() {
     row.onclick = () => { $('inv-filter').value = w; renderInventory(); };
     eq.appendChild(row);
   }
-  const filter = $('inv-filter').value, sort = $('inv-sort').value;
-  let items = prof.inventory.slice();
-  if (filter !== 'all') items = items.filter((i) => SKINS[i.skin].weapon === filter);
+  const sort = $('inv-sort').value;
+  let items = invItems();
   if (sort === 'rarity') items.sort((a, b) => RARITY_ORDER.indexOf(SKINS[b.skin].rarity) - RARITY_ORDER.indexOf(SKINS[a.skin].rarity) || a.float - b.float);
   else if (sort === 'value') items.sort((a, b) => itemValue(b) - itemValue(a));
   else items.reverse();
   const grid = $('inv-grid');
   grid.innerHTML = '';
-  $('inv-count').textContent = `${prof.inventory.length} objet(s)`;
+  $('inv-count').textContent = `${prof.inventory.length.toLocaleString('fr-FR')} / ${(prof.invMax || 10000).toLocaleString('fr-FR')} objets`;
+  renderSellBar();
+  const pages = Math.max(1, Math.ceil(items.length / INV_PAGE));
+  invPage = Math.min(invPage, pages - 1);
+  const pageItems = items.slice(invPage * INV_PAGE, (invPage + 1) * INV_PAGE);
+  renderSelBar(pageItems);
+  const pager = $('inv-pager');
+  pager.innerHTML = '';
+  if (pages > 1) {
+    const btn = (label, page, dis) => { const b = document.createElement('button'); b.className = 'btn small'; b.textContent = label; b.disabled = dis; b.onclick = () => { invPage = page; renderInventory(); window.scrollTo(0, 0); }; pager.appendChild(b); };
+    btn('« Début', 0, invPage === 0); btn('‹ Préc.', invPage - 1, invPage === 0);
+    pager.insertAdjacentHTML('beforeend', `<span>Page ${invPage + 1} / ${pages}</span>`);
+    btn('Suiv. ›', invPage + 1, invPage >= pages - 1); btn('Fin »', pages - 1, invPage >= pages - 1);
+  }
   if (!items.length) {
     grid.innerHTML = `<p class="hint">Aucun objet ici. Ouvre des caisses dans l'onglet <b>CAISSES</b> — tu gagnes des crédits en faisant des kills !</p>`;
     return;
   }
-  for (const it of items) grid.appendChild(itemCard(it, { onClick: openItem }));
+  for (const it of pageItems) {
+    const card = itemCard(it, {
+      selected: selectMode && selected.has(it.uid),
+      onClick: selectMode ? () => { if (selected.has(it.uid)) selected.delete(it.uid); else selected.add(it.uid); card.classList.toggle('selected', selected.has(it.uid)); renderSelBar(pageItems); } : openItem,
+      quickSell: selectMode ? null : quickSell,
+    });
+    grid.appendChild(card);
+  }
 }
 
 function openItem(item, extraActions = null) {

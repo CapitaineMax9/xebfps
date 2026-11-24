@@ -81,6 +81,14 @@ export function save() {
   settingsTimer = setTimeout(() => send({ t: 'settings', settings: data.settings }), 800);
 }
 
+// Applique les objets ajoutés / retirés envoyés par le serveur
+export function applyInvDelta(add, del) {
+  if (!add && !del) return;
+  if (del && del.length) { const set = new Set(del); data.inventory = data.inventory.filter((i) => !set.has(i.uid)); }
+  if (add && add.length) data.inventory.push(...add);
+  emit();
+}
+
 export function setCredits(total) { if (Number.isFinite(total)) { data.credits = total; emit(); } }
 export function addLocalItem(item) { data.inventory.push(item); emit(); }
 
