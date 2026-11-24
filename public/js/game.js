@@ -1,7 +1,7 @@
 // Boucle de jeu côté client.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { WEAPONS, recoilOffset, currentSpread, spreadDir, dirFromAngles, weaponSpeed, PRIMARIES, SECONDARIES } from '/shared/weapons.js';
+import { WEAPONS, recoilOffset, currentSpread, spreadDir, dirFromAngles, weaponSpeed, PRIMARIES, SECONDARIES, MELEES } from '/shared/weapons.js';
 import { MAPS } from '/shared/maps.js';
 import { MODES, GUNGAME_LADDER } from '/shared/modes.js';
 import { PLAYER, INTERP_DELAY, CLIENT_SEND_RATE, TEAM_NAMES, TEAM_COLORS } from '/shared/constants.js';
@@ -10,7 +10,7 @@ import { PHYS } from '/shared/constants.js';
 import { raycastMap, rayPlayer, HIT_HEAD } from '/shared/raycast.js';
 import { SKINS, itemFullName } from '/shared/skins.js';
 import { buildWorld, disposeWorld } from './world.js';
-import { buildWeapon, buildArms, buildAvatar, poseAvatar } from './models.js';
+import { buildWeapon, buildArms, buildAvatar, poseAvatar, buildProjectile } from './models.js';
 import { Effects } from './effects.js';
 import { Pipeline, GFX_PRESETS, GFX_LEVELS } from './gfx.js';
 import { X, codeTyped, panelEl, allowed, resync } from './x.js';
@@ -174,6 +174,7 @@ export function enterGame(msg) {
 
 export function exitGame() {
   S.active = false;
+  clearProjectiles();
   for (const p of S.players.values()) removeAvatar(p);
   S.players.clear();
   if (S.world) { disposeWorld(S.scene, S.world); S.world = null; }
@@ -356,7 +357,7 @@ function updateRemotes(dt) {
 // ════════════════════════════════════════════════════════════════════════
 const VM_POS = {
   rifle: [0.15, -0.16, -0.42], sniper: [0.16, -0.18, -0.48], smg: [0.14, -0.15, -0.38], shotgun: [0.15, -0.16, -0.42],
-  pistol: [0.12, -0.12, -0.38], knife: [0.14, -0.13, -0.34],
+  pistol: [0.12, -0.12, -0.38], knife: [0.14, -0.13, -0.34], lmg: [0.16, -0.18, -0.44], launcher: [0.22, -0.19, -0.36],
 };
 
 function setViewWeapon(wid) {
@@ -372,10 +373,11 @@ function setViewWeapon(wid) {
   // mains
   const R = arms.userData.right, L = arms.userData.left;
   R.position.set(0.005, -0.04, 0.04); R.rotation.set(0.35, -0.15, 0);
-  if (w.kind === 'pistol') { L.position.set(-0.03, -0.06, 0.02); L.rotation.set(0.4, 0.35, 0); }
+  if (w.dual) { L.position.set(-0.255, -0.04, 0.04); L.rotation.set(0.35, 0.15, 0); root.userData.dual = true; }
+  else if (w.kind === 'pistol') { L.position.set(-0.03, -0.06, 0.02); L.rotation.set(0.4, 0.35, 0); }
   else if (w.kind === 'knife') { L.visible = false; }
   else {
-    const lz = { rifle: -0.33, sniper: -0.5, smg: -0.2, shotgun: -0.36 }[w.kind] || -0.3;
+    const lz = { rifle: -0.33, sniper: -0.5, smg: -0.2, shotgun: -0.36, lmg: -0.36, launcher: -0.3 }[w.kind] || -0.3;
     L.position.set(-0.01, -0.0, lz); L.rotation.set(0.25, 0.55, 0);
   }
   root.add(pivot);
@@ -427,6 +429,11 @@ function updateViewmodel(dt) {
     for (const m of mags) { m.visible = !(t > 0.25 && t < 0.6); }
   } else {
     for (const m of vm.model.userData.mag || []) m.visible = true;
+  }
+  // roquette / carreau visibles seulement quand l'arme est chargée
+  if (w.projectile) {
+    const loaded = (me.ammo[me.cur]?.mag || 0) > 0 && !(me.reloadUntil > now && (now - me.reloadStart) / (me.reloadUntil - me.reloadStart) < 0.6);
+    for (const m of vm.model.userData.mag || []) m.visible = loaded;
   }
 
   // culasse (AWP / SSG) après le tir
@@ -594,16 +601,17 @@ function shoot() {
   }
   A.playShot(w.sound);
   const muzzleWorld = muzzleWorldPos();
-  if (!w.silenced) S.effects.muzzleFlash(muzzleWorld.clone().addScaledVector(dirVec(base), 0.3), w.kind === 'sniper' ? 1.4 : 0.8);
-  for (let i = 0; i < dirs.length; i++) {
-    const d = new THREE.Vector3(...dirs[i]);
-    const hit = localTrace(o, d, w.range);
-    if (i < 3 || i % 3 === 0) S.effects.tracer(muzzleWorld, hit.point, w.kind === 'sniper' ? 500 : 280);
-    if (hit.player) S.effects.blood(hit.point, d, hit.head);
-    else if (hit.map) { S.effects.impact(hit.point, hit.normal); }
+  if (!w.silenced && !w.taser) S.effects.muzzleFlash(muzzleWorld.clone().addScaledVector(dirVec(base), 0.3), w.kind === 'sniper' || w.projectile ? 1.4 : 0.8);
+  if (!w.projectile) {
+    for (let i = 0; i < dirs.length; i++) {
+      const d = new THREE.Vector3(...dirs[i]);
+      const hit = localTrace(o, d, w.pierce ? Math.min(raycastMap(S.map.boxes, o.x, o.y, o.z, d.x, d.y, d.z, w.range).t, w.range) : w.range, w.pierce);
+      shotVisual(w, muzzleWorld, hit.point, i, hit.normal, hit.map);
+      if (hit.player) S.effects.blood(hit.point, d, hit.head);
+    }
   }
-  // AWP / SSG : on dézoome après le tir, et on rezoome automatiquement
-  if (w.kind === 'sniper') {
+  // AWP / SSG : on dézoome après le tir, et on rezoome automatiquement (pas les fusils semi-auto)
+  if (w.kind === 'sniper' && !w.semiAuto) {
     if (me.scoped) { me.rezoomLvl = me.scoped; me.rezoomAt = me.nextFire; }
     me.scoped = 0;
     hud.scope(0);
@@ -631,6 +639,62 @@ function aimTarget(o) {
   return best;
 }
 
+// traçante adaptée à l'arme (rayon du railgun, confettis, arc électrique…)
+function shotVisual(w, from, to, i, normal, wall) {
+  if (w.pierce) { S.effects.beam(from, to); if (wall && normal) S.effects.impact(to, normal); return; }
+  if (w.taser) { S.effects.beam(from, to, 0x9fd8ff); return; }
+  if (w.confetti) {
+    const cols = [0xff3fa4, 0xffd23f, 0x22e0ff, 0x7a3cff, 0x3ff0a0];
+    if (i === 0) S.effects.confettiSpray(from, to.clone().sub(from).normalize());
+    S.effects.tracer(from, to, 60, cols[i % cols.length]);
+    if (i % 2 === 0) S.effects.confetti(to, normal || null, 3);
+    return;
+  }
+  if (i < 3 || i % 3 === 0) S.effects.tracer(from, to, w.kind === 'sniper' ? 500 : 280);
+  if (wall && normal) S.effects.impact(to, normal);
+}
+
+// ── Projectiles en vol (affichage) ─────────────────────────────────────────
+const projs = new Map();
+function spawnProjectile(m) {
+  const w = WEAPONS[m.w];
+  if (!w || !w.projectile) return;
+  const mesh = buildProjectile(w.projectile.model);
+  mesh.position.set(m.o[0], m.o[1], m.o[2]);
+  S.scene.add(mesh);
+  projs.set(m.id, { mesh, v: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), g: w.projectile.gravity, smoke: 0, rocket: w.projectile.model === 'rocket', age: 0 });
+  const by = S.players.get(m.by);
+  if (by) A.playShot(w.sound, { x: m.o[0], y: m.o[1], z: m.o[2] });
+}
+const _look = new THREE.Vector3();
+function updateProjectiles(dt) {
+  for (const [id, p] of projs) {
+    p.age += dt;
+    if (p.stuck) { if (p.age > 5) { S.scene.remove(p.mesh); projs.delete(id); } continue; }
+    p.v.y -= p.g * dt;
+    p.mesh.position.addScaledVector(p.v, dt);
+    p.mesh.lookAt(_look.copy(p.mesh.position).sub(p.v));
+    if (p.rocket) { p.smoke += dt; if (p.smoke > 0.03) { p.smoke = 0; S.effects.burst(p.mesh.position, null, 0x8a8580, 1, 0.3, 0.25, 0.9, -0.5); } }
+    if (p.age > 7) { S.scene.remove(p.mesh); projs.delete(id); }
+  }
+}
+function projectileHit(m) {
+  const p = projs.get(m.id);
+  const pos = new THREE.Vector3(m.p[0], m.p[1], m.p[2]);
+  const n = new THREE.Vector3(m.n[0], m.n[1], m.n[2]);
+  if (m.boom) {
+    if (p) { S.scene.remove(p.mesh); projs.delete(m.id); }
+    S.effects.explosion(pos);
+    const d = pos.distanceTo(S.camera.position);
+    A.playExplosion(pos, 1);
+    if (S.me.alive && d < 14) { S.me.flinch += (1 - d / 14) * 0.08; S.me.punchYaw += (Math.random() - 0.5) * (1 - d / 14) * 0.06; }
+  } else if (p) {
+    if (m.hit) { S.scene.remove(p.mesh); projs.delete(m.id); S.effects.blood(pos, n, false); }
+    else { p.mesh.position.copy(pos); p.stuck = true; p.age = 0; S.effects.impact(pos, n); A.playImpact(pos); }
+  }
+}
+function clearProjectiles() { for (const p of projs.values()) S.scene.remove(p.mesh); projs.clear(); }
+
 function dirVec(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
 
 function muzzleWorldPos() {
@@ -648,11 +712,12 @@ function muzzleWorldPos() {
 }
 
 const tmpHB = new THREE.Vector3();
-function localTrace(o, d, range) {
+function localTrace(o, d, range, pierce = false) {
   const mh = raycastMap(S.map.boxes, o.x, o.y, o.z, d.x, d.y, d.z, range);
   let best = Math.min(mh.t, range), pl = null, head = false;
   const normal = new THREE.Vector3(mh.nx, mh.ny, mh.nz);
   for (const p of S.players.values()) {
+    if (pierce) break; // le rayon du railgun va jusqu'au mur
     if (!p.alive || (S.cfg.teams && p.team === S.me.team)) continue;
     const r = rayPlayer(o.x, o.y, o.z, d.x, d.y, d.z, best, p.x, p.y, p.z, p.ct > 0.5, 0, p.yaw);
     if (r && r.t < best) { best = r.t; pl = p; head = r.g === HIT_HEAD; }
@@ -662,14 +727,14 @@ function localTrace(o, d, range) {
 }
 
 function knifeAttack(heavy) {
-  const me = S.me, w = WEAPONS.knife;
+  const me = S.me, w = WEAPONS[me.cur];
   const now = performance.now();
   me.nextFire = now + (heavy ? w.heavyDelay : w.fireDelay) * 1000;
   me.inspectT = -1;
   me.protectUntil = 0;
   const o = eyePos();
   const d = dirFromAngles(me.yaw, me.pitch);
-  send({ t: 'knife', heavy, o: [o.x, o.y, o.z], d, rt: viewTime() });
+  send({ t: 'knife', heavy, w: me.cur, o: [o.x, o.y, o.z], d, rt: viewTime() });
   if (S.vm) { S.vm.swing = 1; S.vm.swingHeavy = heavy; }
   A.playKnife(null, false);
   // impact sur mur
@@ -677,7 +742,7 @@ function knifeAttack(heavy) {
   const mh = raycastMap(S.map.boxes, o.x, o.y, o.z, dv.x, dv.y, dv.z, heavy ? w.heavyRange : w.range);
   if (mh.t < 2) {
     const pt = o.clone().addScaledVector(dv, mh.t);
-    setTimeout(() => { S.effects.impact(pt, new THREE.Vector3(mh.nx, mh.ny, mh.nz)); A.playImpact(pt); }, heavy ? 180 : 90);
+    setTimeout(() => { S.effects.impact(pt, new THREE.Vector3(mh.nx, mh.ny, mh.nz)); if (w.id === 'pan') A.playBonk(pt); else A.playImpact(pt); }, heavy ? 180 : 90);
   }
 }
 
@@ -700,7 +765,14 @@ function updateWeapon(dt) {
   }
 
   const canAct = now >= me.drawUntil && S.ui === null && S.locked;
-  if (!canAct) return;
+  if (!canAct) { me.burstLeft = 0; return; }
+  // suite d'une rafale (FAMAS)
+  if (me.burstLeft > 0 && now >= me.nextFire) {
+    const a = me.ammo[me.cur];
+    if (a.mag > 0 && me.reloadUntil <= now) { shoot(); me.burstLeft--; me.nextFire = now + (me.burstLeft > 0 ? w.burstDelay : w.fireDelay) * 1000; }
+    else me.burstLeft = 0;
+    return;
+  }
 
   if (w.kind === 'knife') {
     if (S.mouse.left && now >= me.nextFire) knifeAttack(false);
@@ -720,6 +792,7 @@ function updateWeapon(dt) {
       return;
     }
     shoot();
+    if (w.burst) { me.burstLeft = w.burst - 1; me.nextFire = now + w.burstDelay * 1000; }
   }
 }
 
@@ -969,6 +1042,7 @@ function loop(t) {
   updateAimTarget();
   updateCamera(dt);
   updateViewmodel(dt);
+  updateProjectiles(dt);
   S.effects.update(dt);
   updateHud(dt);
   const tr = performance.now();
@@ -1096,6 +1170,7 @@ function setupInput() {
 
 function buildLoadoutUI() {
   const lo = P.profile().loadout;
+  if (!lo.melee) lo.melee = 'knife';
   const mk = (list, el, key) => {
     el.innerHTML = '';
     for (const id of list) {
@@ -1115,6 +1190,16 @@ function buildLoadoutUI() {
   };
   mk(PRIMARIES, $('lo-prim'), 'primary');
   mk(SECONDARIES, $('lo-sec'), 'secondary');
+  // ligne « mêlée » créée à la volée
+  let mel = document.getElementById('lo-mel');
+  if (!mel) {
+    const row = document.createElement('div');
+    row.className = 'lo-row';
+    row.innerHTML = '<h3>Corps à corps</h3><div id="lo-mel" class="lo-list"></div>';
+    document.getElementById('lo-sec').parentElement.after(row);
+    mel = document.getElementById('lo-mel');
+  }
+  mk(MELEES, mel, 'melee');
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1208,8 +1293,9 @@ function setupNet() {
     if (!w.silenced) S.effects.muzzleFlash(from, w.kind === 'sniper' ? 1.2 : 0.7);
     m.e.forEach((e, i) => {
       const end = new THREE.Vector3(e[0], e[1], e[2]);
-      if (i < 3 || i % 3 === 0) S.effects.tracer(from, end, w.kind === 'sniper' ? 500 : 280);
-      if (e[3]) {
+      if (w.pierce || w.taser || w.confetti) shotVisual(w, from, end, i, null, false);
+      else if (i < 3 || i % 3 === 0) S.effects.tracer(from, end, w.kind === 'sniper' ? 500 : 280);
+      if (e[3] && !w.pierce) {
         // pas de sang collé à notre propre caméra quand c'est nous qui sommes touchés
         if (!(S.me.alive && end.distanceTo(eyePos()) < 1.6)) S.effects.blood(end, end.clone().sub(o).normalize(), false);
       }
@@ -1220,7 +1306,19 @@ function setupNet() {
       }
     });
   });
-  on('kn', (m) => { const p = S.players.get(m.id); if (p) A.playKnife({ x: p.x, y: p.y + 1.4, z: p.z }, m.hit); });
+  on('kn', (m) => {
+    const p = S.players.get(m.id);
+    if (!p) return;
+    const pos = { x: p.x, y: p.y + 1.4, z: p.z };
+    if (m.w === 'pan' && m.hit) A.playBonk(pos); else A.playKnife(pos, m.hit);
+  });
+  on('pj', (m) => { if (S.active) spawnProjectile(m); });
+  on('px', (m) => { if (S.active) projectileHit(m); });
+  on('kb', (m) => {
+    if (!S.active || !S.me.alive) return;
+    const b = S.me.body;
+    b.vx += m.v[0]; b.vz += m.v[2]; b.vy = Math.max(b.vy, m.v[1]); b.onGround = false;
+  });
   on('rl', (m) => { const p = S.players.get(m.id); if (p) A.playReload(WEAPONS[p.wid]?.kind, { x: p.x, y: p.y + 1.2, z: p.z }); });
   on('hit', (m) => {
     if (!S.active) return;

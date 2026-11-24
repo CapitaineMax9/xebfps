@@ -105,6 +105,8 @@ for (const mode of MODE_ORDER) {
 }
 
 await accountTests();
+await weaponTests();
+await boardTests();
 await ACC.store.close();
 console.log(errors ? `\n${errors} erreur(s)` : '\nTout est OK');
 process.exit(errors ? 1 : 0);
@@ -141,4 +143,83 @@ async function accountTests() {
   r = ACC.tradeUp(a, uids); if (!r.error) fail('contrat rejoué');
   ACC.equip(a, a.inventory[0].uid);
   const st = ACC.recordKill(a, 'awp', true); if (st !== 8) fail('StatKill : ' + st); else ok('compteur StatKill™');
+}
+
+// ── Armes spéciales (serveur) ─────────────────────────────────────────────
+async function weaponTests() {
+  console.log('Armes spéciales');
+  fake = 5000;
+  const room = new Room('t_armes', { mode: 'ffa', map: 'oasis', bots: 0, maxPlayers: 8 });
+  const mk = async (name) => { const { acc } = await ACC.authenticate(null, name); return room.addHuman(fakeWs([]), acc); };
+  const [a, b, c, d] = [await mk('A'), await mk('B'), await mk('C'), await mk('D')];
+  for (let i = 0; i < 60; i++) { fake += 33; room.tick(1 / 30); }
+  const place = (p, x, z, yaw = 0) => { p.body.x = x; p.body.y = 0; p.body.z = z; p.body.crouch = false; p.yaw = yaw; p.hp = 100; p.alive = true; p.protectUntil = 0; p.history.length = 0; };
+  const reset = () => { place(a, 0, 20); place(b, 0, 12); place(c, 0, 8); place(d, 30, 40); for (const p of [a, b, c, d]) { p.weapons = ['railgun', 'rpg', 'crossbow', 'famas', 'pan']; p.lastShot = {}; } };
+  const eye = (p) => [p.body.x, p.body.y + 1.62, p.body.z];
+  // railgun : traverse B puis C (alignés)
+  reset(); fake += 3000;
+  room.fire(a, 'railgun', eye(a), [[0, 0, -1]], fake, true);
+  if (!b.alive && !c.alive) ok('railgun : 2 joueurs alignés tués d\'un tir'); else fail(`railgun : B ${b.hp} PV, C ${c.hp} PV`);
+  // roquette : touche B, souffle sur C (4 m derrière), D trop loin
+  reset(); fake += 3000;
+  room.fire(a, 'rpg', eye(a), [[0, -0.05, -1]], fake, false);
+  for (let i = 0; i < 40 && room.projectiles.length; i++) { fake += 33; room.stepProjectiles(1 / 30); }
+  if (b.hp <= 0 && c.hp < 100 && c.hp > 0 && d.hp === 100) ok(`roquette : impact direct mortel, souffle sur le voisin (C à ${c.hp} PV), joueur lointain épargné`);
+  else fail(`roquette : B ${b.hp} PV, C ${c.hp} PV, D ${d.hp} PV`);
+  // souffle bloqué par un mur : C caché derrière la grosse caisse du site A
+  reset(); fake += 3000;
+  place(a, 20, 0); place(c, 27.6, 0); place(b, 30, 30);
+  room.fire(a, 'rpg', eye(a), [[1, -0.1, 0]], fake, false);
+  for (let i = 0; i < 40 && room.projectiles.length; i++) { fake += 33; room.stepProjectiles(1 / 30); }
+  if (c.hp === 100) ok('roquette : le souffle ne traverse pas les murs'); else fail(`souffle à travers une caisse : C ${c.hp} PV`);
+  // arbalète : carreau dans la tête à 8 m
+  reset(); fake += 3000;
+  const hy = 1.68 - 1.62;
+  room.fire(a, 'crossbow', eye(a), [[0, hy / 8 + 0.004, -1]], fake, false);
+  for (let i = 0; i < 40 && room.projectiles.length; i++) { fake += 33; room.stepProjectiles(1 / 30); }
+  if (b.hp <= 0) ok('arbalète : carreau mortel (avec la chute due à la gravité)'); else fail(`arbalète : B ${b.hp} PV`);
+  // poêle au corps à corps
+  reset(); fake += 3000; place(b, 0, 18.8, Math.PI); // B face à A (sinon c'est un coup dans le dos)
+  room.knife(a, true, eye(a), [0, -0.2, -1], fake, 'pan');
+  if (b.hp === 5) ok('poêle : coup lourd = 95 dégâts'); else fail(`poêle : B ${b.hp} PV`);
+  reset(); fake += 3000; place(b, 0, 18.8, 0);
+  room.knife(a, true, eye(a), [0, -0.2, -1], fake, 'pan');
+  if (!b.alive) ok('poêle dans le dos : mortel'); else fail(`poêle dans le dos : B ${b.hp} PV`);
+  // FAMAS : les 3 balles d'une rafale sont acceptées par le serveur
+  reset(); fake += 3000;
+  let accepted = 0;
+  for (let i = 0; i < 3; i++) { if (room.canFire(a, 'famas')) accepted++; fake += 66; }
+  if (accepted === 3) ok('FAMAS : rafale de 3 balles acceptée'); else fail(`FAMAS : ${accepted}/3 balles acceptées`);
+}
+
+// ── Caisses en masse + classement ─────────────────────────────────────────
+async function boardTests() {
+  console.log('Caisses en masse et classement');
+  const { acc } = await ACC.authenticate(null, 'Ouvreur');
+  acc.credits = 400 * 100 + 50;
+  let r = ACC.openCase(acc, 'sniper', 100);
+  if (r.items && r.items.length === 100 && acc.credits === 50) ok('100 caisses ouvertes d\'un coup (crédits débités : 40 000 ◈)'); else fail('ouverture x100 : ' + (r.error || acc.credits));
+  r = ACC.openCase(acc, 'sniper', 10); if (!r.error) fail('x10 sans crédits accepté');
+  r = ACC.openCase(acc, 'sniper', 37); if (r.items && r.items.length !== 1) fail('quantité invalide non ramenée à 1');
+  const cheap = acc.inventory.filter((i) => ['milspec', 'restricted'].includes(SKINS[i.skin].rarity)).map((i) => i.uid);
+  const before = acc.inventory.length;
+  r = ACC.sellMany(acc, cheap);
+  if (r.count === cheap.length && acc.inventory.length === before - cheap.length) ok(`vente groupée : ${r.count} objets pour ${r.value} ◈`); else fail('vente groupée');
+  // classement
+  const mkReg = async (name) => { const { acc: x } = await ACC.authenticate(null, name); await ACC.register(x, name, 'secret123'); return x; };
+  const p1 = await mkReg('Alpha'), p2 = await mkReg('Bravo'), p3 = await mkReg('Charlie');
+  for (let i = 0; i < 30; i++) ACC.recordKill(p1, 'ak47', i % 2 === 0);
+  for (let i = 0; i < 25; i++) ACC.recordKill(p2, 'awp', true);
+  for (let i = 0; i < 500; i++) ACC.recordKill(p3, 'awp', true, false); // kills avec outils privés : non classés
+  ACC.recordDeath(p1); ACC.recordDeath(p2); ACC.recordDeath(p2);
+  ACC.recordMatch(p2, true);
+  let lb = await ACC.leaderboard('kills', p1);
+  const names = lb.top.map((e) => e.name);
+  if (names[0] === 'Alpha' && names[1] === 'Bravo' && !names.includes('Charlie') && lb.me && lb.me.rank === 1) ok('classement Kills : ordre correct, kills sous cheat exclus, ma position');
+  else fail('classement kills : ' + JSON.stringify(lb.top.map((e) => [e.name, e.value])));
+  lb = await ACC.leaderboard('hs', p2);
+  if (lb.top[0] && lb.top[0].name === 'Bravo' && lb.top[0].value === 100) ok('classement Headshots % : Bravo 100 %'); else fail('classement hs : ' + JSON.stringify(lb.top));
+  lb = await ACC.leaderboard('wins', null);
+  if (lb.top.length === 1 && lb.top[0].name === 'Bravo') ok('classement Victoires'); else fail('classement victoires');
+  if (lb.top.some((e) => 'id' in e)) fail('identifiant interne envoyé dans le classement');
 }

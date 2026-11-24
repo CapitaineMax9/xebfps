@@ -45,17 +45,74 @@ export class Effects {
     this.lightT = 0;
   }
 
-  tracer(from, to, speed = 300) {
+  tracer(from, to, speed = 300, color = null) {
     const d = to.clone().sub(from);
     const len = d.length();
     if (len < 1.5) return;
-    const m = new THREE.Mesh(this.tracerGeo, this.tracerMat);
+    const m = new THREE.Mesh(this.tracerGeo, color ? this.colorMat(color) : this.tracerMat);
     m.position.copy(from);
     m.lookAt(to);
     const segLen = Math.min(len, 6);
     m.scale.set(1, 1, segLen);
     this.group.add(m);
     this.tracers.push({ m, from: from.clone(), dir: d.normalize(), len, t: 0, speed, segLen });
+  }
+
+  colorMat(color) {
+    this.mats = this.mats || new Map();
+    if (!this.mats.has(color)) this.mats.set(color, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+    return this.mats.get(color);
+  }
+
+  // rayon du railgun : faisceau épais qui s'estompe
+  beam(from, to, color = 0x40d8ff) {
+    const d = to.clone().sub(from);
+    const len = d.length();
+    const geo = new THREE.CylinderGeometry(0.045, 0.045, len, 6, 1, true);
+    geo.rotateX(Math.PI / 2); geo.translate(0, 0, len / 2);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
+    const core = new THREE.Mesh(geo, mat);
+    core.position.copy(from); core.lookAt(to);
+    const glow = core.clone(); glow.material = mat.clone(); glow.scale.set(4, 4, 1); glow.material.opacity = 0.35;
+    this.group.add(core, glow);
+    this.beams = this.beams || [];
+    this.beams.push({ meshes: [core, glow], t: 0, life: 0.6 });
+    for (let i = 0; i < 12; i++) this.burst(from.clone().lerp(to, Math.random()), null, color, 2, 0.8, 0.05, 0.6, 0);
+  }
+
+  // gerbe de confettis qui sort du canon
+  confettiSpray(from, dir, count = 40) {
+    const cols = [0xff3fa4, 0xffd23f, 0x22e0ff, 0x7a3cff, 0x3ff0a0, 0xff6a13];
+    for (let i = 0; i < count; i++) {
+      const mat = new THREE.SpriteMaterial({ map: this.particleTex, color: cols[i % cols.length], transparent: true, depthWrite: false });
+      const s = new THREE.Sprite(mat);
+      s.position.copy(from);
+      const sz = 0.04 + Math.random() * 0.04;
+      s.scale.set(sz, sz, sz);
+      const v = dir.clone().multiplyScalar(8 + Math.random() * 10).add(new THREE.Vector3((Math.random() - 0.5) * 4, (Math.random() - 0.2) * 3, (Math.random() - 0.5) * 4));
+      this.group.add(s);
+      this.particles.push({ s, v, t: 0, life: 1.2 + Math.random() * 0.8, g: 5, sz });
+    }
+  }
+
+  confetti(pos, normal, count = 10) {
+    const cols = [0xff3fa4, 0xffd23f, 0x22e0ff, 0x7a3cff, 0x3ff0a0, 0xff6a13];
+    for (let i = 0; i < count; i++) this.burst(pos, normal, cols[i % cols.length], 1, 3, 0.07, 1.4, 3);
+  }
+
+  explosion(pos) {
+    // flash central
+    const f = new THREE.Sprite(this.flashMat);
+    f.position.copy(pos); f.scale.set(5, 5, 5);
+    this.group.add(f);
+    this.particles.push({ s: f, v: new THREE.Vector3(), t: 0, life: 0.14, g: 0, sz: 5, flash: true });
+    this.burst(pos, null, 0xffcc66, 30, 8, 0.6, 0.7, 0);
+    this.burst(pos, new THREE.Vector3(0, 0.6, 0), 0xff6a20, 24, 5, 0.9, 0.9, -1.5);
+    this.burst(pos, new THREE.Vector3(0, 1, 0), 0x7a7068, 22, 2.5, 1.3, 2.4, -0.6);
+    this.light.position.copy(pos); this.light.intensity = 60; this.light.distance = 18; this.lightT = 0.18;
+    const scorch = new THREE.Mesh(this.decalGeo, this.decalMat);
+    scorch.position.copy(pos).setY(Math.max(0.015, pos.y)); scorch.rotation.x = -Math.PI / 2; scorch.scale.set(22, 22, 22);
+    this.group.add(scorch); this.decals.push(scorch);
   }
 
   decal(pos, normal) {
@@ -72,7 +129,7 @@ export class Effects {
 
   burst(pos, normal, color, count = 8, speed = 2.5, size = 0.06, life = 0.5, gravity = 6) {
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.SpriteMaterial({ map: this.particleTex, color, transparent: true, depthWrite: false, blending: color === 0xffcc66 ? THREE.AdditiveBlending : THREE.NormalBlending });
+      const mat = new THREE.SpriteMaterial({ map: this.particleTex, color, transparent: true, depthWrite: false, blending: color === 0xffcc66 || color === 0xff6a20 ? THREE.AdditiveBlending : THREE.NormalBlending });
       const s = new THREE.Sprite(mat);
       s.position.copy(pos);
       const sz = size * (0.6 + Math.random() * 0.8);
@@ -122,10 +179,22 @@ export class Effects {
       p.t += dt;
       if (p.t >= p.life) { this.group.remove(p.s); if (!p.flash) p.s.material.dispose(); this.particles.splice(i, 1); continue; }
       p.v.y -= p.g * dt;
+      if (p.g < 0) p.v.multiplyScalar(1 - dt * 1.5); // fumée : ralentit et monte
       p.s.position.addScaledVector(p.v, dt);
+      if (p.g < 0) p.s.scale.setScalar(p.sz * (1 + p.t * 1.5));
       if (!p.flash) p.s.material.opacity = 1 - p.t / p.life;
     }
-    if (this.lightT > 0) { this.lightT -= dt; if (this.lightT <= 0) this.light.intensity = 0; }
+    if (this.lightT > 0) { this.lightT -= dt; if (this.lightT <= 0) { this.light.intensity = 0; this.light.distance = 8; } }
+    if (this.beams) {
+      for (let i = this.beams.length - 1; i >= 0; i--) {
+        const b = this.beams[i];
+        b.t += dt;
+        const k = 1 - b.t / b.life;
+        b.meshes[0].material.opacity = Math.max(0, k);
+        b.meshes[1].material.opacity = Math.max(0, k * 0.35);
+        if (b.t >= b.life) { for (const m of b.meshes) { this.group.remove(m); m.geometry.dispose(); m.material.dispose(); } this.beams.splice(i, 1); }
+      }
+    }
   }
 
   clear() {

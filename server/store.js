@@ -28,6 +28,7 @@ class FileStore {
   }
 
   async findBySession(hash) { const id = this.sessions.get(hash); return id ? this.accounts.get(id) || null : null; }
+  async allRegistered() { return [...this.accounts.values()].filter((a) => a.nameLower); }
   async findByName(nameLower) { const id = this.byName.get(nameLower); return id ? this.accounts.get(id) || null : null; }
   async nameTaken(nameLower) { return this.byName.has(nameLower); }
   async create(a) { this.index(a); this.schedule(); }
@@ -102,6 +103,11 @@ class PgStore {
   async findBySession(hash) {
     const r = await this.pool.query('select a.id, a.data from sessions s join accounts a on a.id = s.account_id where s.token_hash = $1', [hash]);
     return this.wrap(r.rows[0]);
+  }
+
+  async allRegistered() {
+    const r = await this.pool.query('select id, data from accounts where name_lower is not null');
+    return r.rows.map((row) => this.cache.get(row.id) || row.data);
   }
 
   async findByName(nameLower) {

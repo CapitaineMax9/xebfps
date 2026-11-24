@@ -2,11 +2,12 @@
 import crypto from 'node:crypto';
 import { createStore } from './store.js';
 import { SKINS, CASES, RARITIES, rollCase, makeItem, itemValue, tradeUpResult } from '../shared/skins.js';
-import { PRIMARIES, SECONDARIES, WEAPONS } from '../shared/weapons.js';
+import { PRIMARIES, SECONDARIES, MELEES, WEAPONS } from '../shared/weapons.js';
 import { CREDITS } from '../shared/constants.js';
 
 const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
-const MAX_INVENTORY = 1000;
+const MAX_INVENTORY = 2000;
+export const OPEN_COUNTS = [1, 5, 10, 100];
 const GUEST_MAX_AGE = 60 * 24 * 3600 * 1000;
 
 export const store = createStore();
@@ -169,17 +170,35 @@ export function setGuestName(acc, name) {
 }
 
 // ── Économie ─────────────────────────────────────────────────────────────
-export function openCase(acc, caseId) {
+export function openCase(acc, caseId, count = 1) {
   const c = CASES.find((x) => x.id === caseId);
   if (!c) return { error: 'Caisse inconnue.' };
-  if (acc.credits < c.price) return { error: `Pas assez de crédits (il te faut ${c.price} ◈).` };
-  if (acc.inventory.length >= MAX_INVENTORY) return { error: 'Inventaire plein : vends quelques objets.' };
-  acc.credits -= c.price;
-  const item = rollCase(c);
-  acc.inventory.push(item);
-  acc.stats.cases = (acc.stats.cases || 0) + 1;
+  const n = OPEN_COUNTS.includes(Number(count)) ? Number(count) : 1;
+  if (acc.credits < c.price * n) return { error: `Pas assez de crédits (il te faut ${(c.price * n).toLocaleString('fr-FR')} ◈ pour ${n} caisse${n > 1 ? 's' : ''}).` };
+  if (acc.inventory.length + n > MAX_INVENTORY) return { error: `Inventaire plein (${MAX_INVENTORY} objets max) : vends quelques objets.` };
+  acc.credits -= c.price * n;
+  const items = [];
+  for (let i = 0; i < n; i++) items.push(rollCase(c));
+  acc.inventory.push(...items);
+  acc.stats.cases = (acc.stats.cases || 0) + n;
   store.save(acc);
-  return { item };
+  return { item: items[0], items };
+}
+
+// Vente groupée (ignore les objets inconnus ; déséquipe ce qui est vendu)
+export function sellMany(acc, uids) {
+  if (!Array.isArray(uids)) return { error: 'Liste invalide.' };
+  const set = new Set(uids.slice(0, MAX_INVENTORY).map(String));
+  let value = 0, count = 0;
+  acc.inventory = acc.inventory.filter((i) => {
+    if (!set.has(i.uid)) return true;
+    value += itemValue(i); count++;
+    return false;
+  });
+  for (const [w, u] of Object.entries(acc.equipped)) if (set.has(u)) delete acc.equipped[w];
+  acc.credits += value;
+  store.save(acc);
+  return { value, count };
 }
 
 export function sell(acc, uid) {
@@ -226,6 +245,7 @@ export function setLoadout(acc, lo) {
   acc.loadout = {
     primary: PRIMARIES.includes(lo.primary) ? lo.primary : acc.loadout.primary,
     secondary: SECONDARIES.includes(lo.secondary) ? lo.secondary : acc.loadout.secondary,
+    melee: MELEES.includes(lo.melee) ? lo.melee : (acc.loadout.melee || 'knife'),
   };
   store.save(acc);
 }
@@ -247,9 +267,13 @@ export function reward(acc, n) {
   return acc.credits;
 }
 
-export function recordKill(acc, weapon, hs) {
+// Statistiques du classement (rstats) : comptées seulement si le joueur joue « normalement »
+function rs(acc) { return (acc.rstats = acc.rstats || { kills: 0, deaths: 0, hs: 0, wins: 0, matches: 0 }); }
+
+export function recordKill(acc, weapon, hs, ranked = true) {
   acc.stats.kills = (acc.stats.kills || 0) + 1;
   if (hs) acc.stats.hs = (acc.stats.hs || 0) + 1;
+  if (ranked) { rs(acc).kills++; if (hs) rs(acc).hs++; }
   let stKills = null;
   const uid = acc.equipped[weapon];
   const it = uid && acc.inventory.find((i) => i.uid === uid);
@@ -258,12 +282,47 @@ export function recordKill(acc, weapon, hs) {
   return stKills;
 }
 
-export function recordDeath(acc) { acc.stats.deaths = (acc.stats.deaths || 0) + 1; store.save(acc); }
+export function recordDeath(acc, ranked = true) {
+  acc.stats.deaths = (acc.stats.deaths || 0) + 1;
+  if (ranked) rs(acc).deaths++;
+  store.save(acc);
+}
 
-export function recordMatch(acc, won) {
+export function recordMatch(acc, won, ranked = true) {
   acc.stats.matches = (acc.stats.matches || 0) + 1;
   if (won) acc.stats.wins = (acc.stats.wins || 0) + 1;
+  if (ranked) { rs(acc).matches++; if (won) rs(acc).wins++; }
   store.save(acc);
+}
+
+// ── Classement ───────────────────────────────────────────────────────────
+export const BOARD_CATS = {
+  kills: { label: 'Kills', value: (r) => r.kills, min: (r) => r.kills > 0 },
+  wins: { label: 'Victoires', value: (r) => r.wins, min: (r) => r.wins > 0 },
+  kd: { label: 'K/D', value: (r) => Math.round(r.kills / Math.max(1, r.deaths) * 100) / 100, min: (r) => r.kills >= 20 },
+  hs: { label: 'Headshots %', value: (r) => Math.round(r.hs / Math.max(1, r.kills) * 1000) / 10, min: (r) => r.kills >= 20 },
+};
+const boardCache = { t: 0, list: null };
+
+export async function leaderboard(cat, me) {
+  const C = BOARD_CATS[cat] ? BOARD_CATS[cat] : BOARD_CATS.kills;
+  if (!boardCache.list || Date.now() - boardCache.t > 15000) {
+    const accs = await store.allRegistered();
+    boardCache.list = accs.map((a) => ({ id: a.id, name: a.name, r: { kills: 0, deaths: 0, hs: 0, wins: 0, matches: 0, ...(a.rstats || {}) } }));
+    boardCache.t = Date.now();
+  }
+  // le joueur qui demande voit toujours ses chiffres à jour
+  const list = boardCache.list.map((e) => (me && e.id === me.id ? { ...e, r: { ...e.r, ...rs(me) } } : e));
+  const rows = list.filter((e) => C.min(e.r)).map((e) => ({ id: e.id, name: e.name, value: C.value(e.r), ...e.r }));
+  rows.sort((a, b) => b.value - a.value || b.kills - a.kills || a.name.localeCompare(b.name));
+  const myIdx = me ? rows.findIndex((r) => r.id === me.id) : -1;
+  const strip = ({ id, ...r }) => r; // l'identifiant interne n'est jamais envoyé
+  return {
+    cat: BOARD_CATS[cat] ? cat : 'kills',
+    top: rows.slice(0, 50).map((r, i) => ({ rank: i + 1, ...strip(r), me: !!me && r.id === me.id })),
+    me: myIdx >= 0 ? { rank: myIdx + 1, ...strip(rows[myIdx]) } : null,
+    total: rows.length,
+  };
 }
 
 // Objet offert en fin de match (40 % de chances, Militaire ou Restreint)

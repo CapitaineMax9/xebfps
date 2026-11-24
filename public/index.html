@@ -74,6 +74,7 @@
         <button data-tab="inventory" class="tab">INVENTAIRE</button>
         <button data-tab="cases" class="tab">CAISSES</button>
         <button data-tab="tradeup" class="tab">CONTRAT</button>
+        <button data-tab="top" class="tab">CLASSEMENT</button>
         <button data-tab="settings" class="tab">PARAMÈTRES</button>
       </nav>
       <div id="wallet"><span class="coin">◈</span> <span id="credits">0</span></div>
@@ -146,6 +147,15 @@
         <button id="btn-tradeup" class="btn primary" disabled>Signer le contrat</button>
       </div>
       <div id="tu-grid" class="item-grid"></div>
+    </section>
+
+    <section id="tab-top" class="tab-page">
+      <div class="panel top-panel">
+        <div class="panel-head"><h3>Meilleurs joueurs</h3><div id="top-cats" class="top-cats"></div></div>
+        <p class="hint" id="top-hint"></p>
+        <table id="top-table" class="sb-table top-table"></table>
+        <div id="top-me" class="top-me"></div>
+      </div>
     </section>
 
     <section id="tab-settings" class="tab-page">

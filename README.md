@@ -19,11 +19,22 @@ et laissent leur place dès qu'un humain arrive.
 
 **Cartes :** Oasis (village du désert, longs couloirs pour l'AWP), Docks (conteneurs, combats rapprochés), Duel (carte longue type « awp_ »).
 
-**Armes :** AWP, SSG 08, AK-47, M4A1-S, MP9, P90, Nova, Desert Eagle, USP-S, Glock-18, couteau (Karambit, Baïonnette, Papillon avec un skin ★).
+**30 armes :**
+- Fusils : AK-47, M4A1-S, FAMAS (rafales de 3), Galil AR, AUG (lunette)
+- Snipers : AWP, SSG 08, SCAR-20 (semi-automatique)
+- Mitraillettes : MP9, MAC-10, MP7, UMP-45, P90
+- Lourdes : Nova, XM1014, M249
+- Pistolets : USP-S, Glock-18, Desert Eagle, Five-SeveN, Tec-9, R8 Revolver, Dual Berettas
+- **Loufoques** : Railgun (traverse les joueurs alignés), Lance-roquettes (explosion, souffle, rocket jump), Arbalète (carreau soumis à la gravité), Lance-confettis, Taser Zeus (une charge, un kill)
+- Corps à corps : couteau (Karambit, Baïonnette, Papillon, Couteau pliant avec un skin ★) ou **poêle** (BONK).
+
+Choix de l'arme principale, du pistolet et de l'arme de corps à corps avec **B**.
 
 ## Skins
 
-- 6 caisses, **94 skins** dont **21 skins d'AWP** et 19 couteaux ★ (Karambit, Baïonnette, Papillon, Couteau pliant).
+- 8 caisses, **135 skins** dont **21 skins d'AWP**, des couteaux ★ et des **poêles ★** (Or Massif, Doppler, Fondu).
+- **Ouverture en masse** : x1 (avec la roulette), x5, x10 ou **x100** d'un coup, avec écran de résultats, meilleur objet et vente groupée des objets courants.
+- **Caisse Arsenal** et **Caisse Loufoque** pour les nouvelles armes.
 - **Caisse Sniper 100 % AWP** : 13 AWP (Wyrm Royal, Feuille d'Or, Kaléidoscope, Toile Pourpre, Aztèque, Koï…) + couteaux.
 - Caisses Prélude, Néon, Prédateur, Street et Safari pour toutes les autres armes ; 37 motifs générés procéduralement.
 - Raretés et probabilités : Militaire 79,92 %, Restreint 15,98 %, Classifié 3,2 %, Secret 0,64 %, ★ 0,26 %.
@@ -43,6 +54,11 @@ et laissent leur place dès qu'un humain arrive.
 
 Stockage : fichier `data/accounts.json` par défaut (parfait en local ou sur un VPS), ou **PostgreSQL** si la variable
 `DATABASE_URL` est définie (indispensable sur Render gratuit, dont le disque est effacé à chaque redémarrage).
+
+## Classement
+
+Onglet **CLASSEMENT** : top 50 des comptes enregistrés par **Kills**, **Victoires**, **K/D** et **Headshots %**
+(minimum 20 kills pour le K/D et les headshots), avec ta position même hors du top 50.
 
 ## Graphismes
 

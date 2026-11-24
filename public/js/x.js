@@ -34,7 +34,7 @@ export function panelEl() {
   panel.querySelectorAll('input[data-k]').forEach((inp) => {
     inp.onchange = () => {
       X[inp.dataset.k] = inp.checked;
-      if (inp.dataset.k === 'god' || inp.dataset.k === 'oneshot') request('x', { f: { god: X.god, oneshot: X.oneshot } });
+      request('x', { f: { ...X } });
     };
   });
   panel.querySelector('[data-c]').onclick = async () => { await request('xc'); };
@@ -44,5 +44,5 @@ export function panelEl() {
 
 // À l'entrée dans une partie : le serveur repart de l'état courant
 export function resync() {
-  if (allowed() && (X.god || X.oneshot)) request('x', { f: { god: X.god, oneshot: X.oneshot } });
+  if (allowed() && Object.values(X).some(Boolean)) request('x', { f: { ...X } });
 }
