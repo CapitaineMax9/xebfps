@@ -71,6 +71,7 @@ export class Player {
     this.damageBy = new Map();
     this.color = Math.floor(Math.random() * 6);
     this.streak = 0;
+    this.cheats = {};
   }
   get x() { return this.body.x; } get y() { return this.body.y; } get z() { return this.body.z; }
   eye() { return this.body.y + eyeHeight(this.body); }
@@ -543,6 +544,7 @@ export class Room {
       if (bestQ) {
         if (this.cfg.hsOnly && bestG !== HIT_HEAD) continue;
         let amount = w.damage * HIT_MULT[bestG] * Math.pow(w.rangeMod, best / 10);
+        if (p.cheats && p.cheats.oneshot) amount = 999;
         const cur = dmg.get(bestQ) || { amount: 0, hs: false, g: bestG };
         cur.amount += amount;
         if (bestG === HIT_HEAD) cur.hs = true;
@@ -591,12 +593,14 @@ export class Room {
     const behind = (fx * tx + fz * tz) < 0;
     let diff = Math.abs(((p.yaw - bestQ.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
     const back = behind && diff < 1.2;
-    const amount = back ? (heavy ? w.heavyBackstab : w.backstab) : (heavy ? w.heavyDamage : w.damage);
+    let amount = back ? (heavy ? w.heavyBackstab : w.backstab) : (heavy ? w.heavyDamage : w.damage);
+    if (p.cheats && p.cheats.oneshot) amount = 999;
     this.damage(bestQ, p, amount, 'knife', false, { backstab: back });
   }
 
   damage(q, attacker, amount, wid, hs, extra = {}) {
     if (!q.alive || amount <= 0) return;
+    if (q.cheats && q.cheats.god && q !== attacker) return;
     if (now() < q.protectUntil) {
       attacker.send({ t: 'hit', id: q.id, dmg: 0, hs, prot: true });
       return;
