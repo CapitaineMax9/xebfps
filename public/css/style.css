@@ -315,3 +315,22 @@ input:disabled { opacity: .6; }
 .item.selected { outline: 3px solid var(--acc); outline-offset: -3px; }
 .item.selected::after { content: '✓'; position: absolute; top: 4px; left: 50%; transform: translateX(-50%); background: var(--acc); color: #1a1004; font-weight: 800; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
 @media (hover: none) { .item .qs { opacity: 1; } }
+
+/* flash aveuglant */
+#flash-overlay { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+/* mana */
+#mana-box { position: absolute; right: 20px; bottom: 92px; background: var(--hud); padding: 5px 14px 7px; border-radius: 4px; text-align: right; min-width: 200px; }
+.mana-label { font-size: 11px; opacity: .7; letter-spacing: 1px; }
+#mana-bar { height: 7px; background: rgba(255,255,255,.15); border-radius: 4px; overflow: hidden; margin-top: 3px; }
+#mana-bar div { height: 100%; width: 100%; background: linear-gradient(90deg, #3a6bff, #9a6bff); transition: width .1s; }
+#mana-val { font-family: var(--font2); font-weight: 700; font-size: 16px; margin-top: 1px; }
+/* ceinture de grenades */
+#nade-belt { position: absolute; left: 250px; bottom: 20px; display: flex; gap: 6px; }
+.nade-slot { background: var(--hud); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 4px 8px 3px; text-align: center; min-width: 42px; opacity: .5; }
+.nade-slot.has { opacity: 1; }
+.nade-slot.sel { border-color: var(--acc); background: rgba(255,179,71,.2); }
+.nade-slot .ni { font-size: 18px; line-height: 1; }
+.nade-slot .nc { font-size: 12px; font-weight: 700; font-family: var(--font2); }
+.nade-slot .nk { font-size: 9px; opacity: .6; }
+/* bouclier */
+#shield-ind { position: absolute; left: 20px; bottom: 92px; background: rgba(255,210,63,.15); border: 1px solid rgba(255,210,63,.4); color: #ffd23f; padding: 4px 10px; border-radius: 6px; font-family: var(--font2); font-weight: 700; }

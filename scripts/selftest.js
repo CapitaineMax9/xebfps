@@ -107,6 +107,7 @@ for (const mode of MODE_ORDER) {
 await accountTests();
 await weaponTests();
 await weaponTests2();
+await grenadeMagicTests();
 await boardTests();
 await skinGenTests();
 await ACC.store.close();
@@ -235,8 +236,80 @@ async function weaponTests2() {
   if (!b.alive) ok('sabre laser : coup lourd mortel'); else fail(`sabre : B ${b.hp} PV`);
   // chaque arme a bien des stats cohérentes
   let miss = 0;
-  for (const [id, w] of Object.entries(W.WEAPONS)) { if (w.kind !== 'knife' && (!w.sound || w.mag === undefined)) miss++; }
+  for (const [id, w] of Object.entries(W.WEAPONS)) { if (!w.sound && w.kind !== 'knife') miss++; if (!['knife', 'grenade', 'magic'].includes(w.kind) && w.mag === undefined) miss++; }
   if (!miss) ok(`${Object.keys(W.WEAPONS).length} armes définies, stats complètes`); else fail(miss + ' armes incomplètes');
+}
+
+// ── Grenades + magie ──────────────────────────────────────────────────────
+async function grenadeMagicTests() {
+  console.log('Grenades et magie');
+  const W = await import('../shared/weapons.js');
+  const { PLAYER } = await import('../shared/constants.js');
+  fake = 12000;
+  const room = new Room('t_magic', { mode: 'ffa', map: 'oasis', bots: 0, maxPlayers: 8 });
+  const mk = async (name) => { const { acc } = await ACC.authenticate(null, name); return room.addHuman(fakeWs([]), acc); };
+  const [a, b, c] = [await mk('M1'), await mk('M2'), await mk('M3')];
+  for (let i = 0; i < 60; i++) { fake += 33; room.tick(1 / 30); }
+  const place = (p, x, z, yaw = 0) => { p.body.x = x; p.body.y = 0; p.body.z = z; p.body.crouch = false; p.yaw = yaw; p.pitch = 0; p.hp = 100; p.alive = true; p.protectUntil = 0; p.history.length = 0; };
+  const eye = (p) => [p.body.x, p.body.y + 1.62, p.body.z];
+  const stepProj = (max = 80) => { for (let i = 0; i < max && room.projectiles.length; i++) { fake += 33; room.stepProjectiles(1 / 30); } };
+  // HE : lancée au pied d'un ennemi
+  place(a, 0, 20); place(b, 0, 9.5); place(c, 30, 40);
+  a.nades = { he: 1, flash: 1, smoke: 1, molotov: 1 };
+  room.onNade(a, { g: 'he', o: eye(a), d: [0, -0.25, -1] });
+  stepProj();
+  if (b.hp < 100) ok(`grenade HE : explosion inflige des dégâts (cible à ${b.hp} PV)`); else fail('HE sans effet');
+  if (a.nades.he === 0) ok('grenade HE : stock décrémenté'); else fail('stock HE non décrémenté');
+  // Flash : un bot qui regarde est aveuglé
+  place(a, 0, 20); b.isBot = true; b.blindUntil = 0; place(b, 0, 14, Math.PI); // B regarde vers A/la grenade
+  room.flashbang([0, 1.6, 17]);
+  if (b.blindUntil > fake) ok('flash : un bot qui regarde est aveuglé'); else fail('flash : bot non aveuglé');
+  b.isBot = false;
+  // Fumigène : bloque la ligne de vue
+  room.smokes = []; room.spawnSmoke([0, 1, 12]);
+  if (room.smokeBlocks(0, 1.6, 20, 0, 1.6, 4)) ok('fumigène : bloque la ligne de vue'); else fail('fumée ne bloque pas');
+  if (!room.smokeBlocks(20, 1.6, 20, 24, 1.6, 20)) ok('fumigène : ne bloque pas ailleurs'); else fail('fumée bloque partout');
+  room.smokes = [];
+  // Molotov : feu au sol qui brûle
+  place(b, 5, 5); room.fires = []; room.spawnFire([5, 0, 5], a);
+  const hp0 = b.hp; for (let i = 0; i < 90; i++) { fake += 33; room.updateWorldEffects(1 / 30, fake); }
+  if (b.hp < hp0) ok(`molotov : le feu brûle ceux qui restent dedans (${hp0} -> ${b.hp} PV)`); else fail('molotov sans dégâts');
+  room.fires = [];
+  // Mana : coûte du mana, refusé si vide
+  place(a, 0, 20); a.weapons = ['fireball', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
+  const m0 = a.mana;
+  room.onCast(a, { w: 'fireball', o: eye(a), d: [0, 0, -1] });
+  if (a.mana === m0 - W.WEAPONS.fireball.mana) ok(`mana : la boule de feu coûte ${W.WEAPONS.fireball.mana} mana`); else fail('mana non décompté : ' + a.mana);
+  a.mana = 5; a.lastShot = {};
+  room.onCast(a, { w: 'fireball', o: eye(a), d: [0, 0, -1] });
+  if (a.mana === 5) ok('mana : sort refusé si mana insuffisant'); else fail('sort lancé sans mana');
+  room.projectiles = [];
+  // Éclair en chaîne : touche plusieurs ennemis
+  place(a, 0, 20); place(b, 0, 12); place(c, 2, 11); a.weapons = ['chainbolt', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
+  room.onCast(a, { w: 'chainbolt', o: eye(a), d: [0, 0, -1] });
+  if (b.hp < 100 && c.hp < 100) ok(`éclair en chaîne : rebondit sur 2 ennemis (B ${b.hp}, C ${c.hp} PV)`); else fail(`chaîne : B ${b.hp}, C ${c.hp}`);
+  // Rayon de givre : dégâts + ralentit
+  place(a, 0, 20); place(b, 0, 12); a.weapons = ['frostbeam', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {}; b.slowUntil = 0; b.slowMul = 1;
+  room.onCast(a, { w: 'frostbeam', o: eye(a), d: [0, 0, -1] });
+  if (b.hp < 100 && b.slowMul < 1 && b.slowUntil > fake) ok(`givre : dégâts + ralentissement (x${b.slowMul})`); else fail(`givre : hp ${b.hp}, slow ${b.slowMul}`);
+  // Bâton de soin
+  place(a, 0, 20); a.hp = 40; a.weapons = ['healstaff', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
+  room.onCast(a, { w: 'healstaff', o: eye(a), d: [0, 0, -1] });
+  if (a.hp === 64) ok('bâton de soin : +24 PV'); else fail('soin : ' + a.hp + ' PV');
+  // Bouclier : absorbe les dégâts
+  place(a, 0, 20); a.hp = 100; a.weapons = ['aegis', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
+  room.onCast(a, { w: 'aegis', o: eye(a), d: [0, 0, -1] });
+  const sh = a.shield; room.damage(a, b, 50, 'usp', false, {});
+  if (sh === 80 && a.hp === 100 && a.shield === 30) ok('bouclier : absorbe 50 dégâts (reste 30 de bouclier, PV intacts)'); else fail(`bouclier : shield ${a.shield}, hp ${a.hp}`);
+  // Blink : téléportation
+  place(a, 0, 20); a.weapons = ['blink', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
+  const z0 = a.body.z; room.onCast(a, { w: 'blink', o: eye(a), d: [0, 0, -1] });
+  if (Math.abs(a.body.z - z0) > 2) ok(`blink : téléportation de ${(z0 - a.body.z).toFixed(1)} m`); else fail('blink : pas de déplacement');
+  // Totem : tourelle qui tire
+  place(a, 0, 20); place(b, 2, 20); a.weapons = ['totem', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
+  room.turrets = []; room.onCast(a, { w: 'totem', o: eye(a), d: [1, 0, 0] });
+  const bhp = b.hp; for (let i = 0; i < 120; i++) { fake += 33; room.updateWorldEffects(1 / 30, fake); }
+  if (room.turrets.length && b.hp < bhp) ok(`totem : la tourelle tire sur l'ennemi (${bhp} -> ${b.hp} PV)`); else fail(`totem : tourelles ${room.turrets.length}, B ${b.hp}`);
 }
 
 // ── Catalogue de skins généré ─────────────────────────────────────────────

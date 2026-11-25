@@ -1,7 +1,7 @@
 // Boucle de jeu côté client.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { WEAPONS, recoilOffset, currentSpread, spreadDir, dirFromAngles, weaponSpeed, PRIMARIES, SECONDARIES, MELEES } from '/shared/weapons.js';
+import { WEAPONS, recoilOffset, currentSpread, spreadDir, dirFromAngles, weaponSpeed, PRIMARIES, SECONDARIES, MELEES, MAGIC, GRENADES, GRENADE_STOCK } from '/shared/weapons.js';
 import { MAPS } from '/shared/maps.js';
 import { MODES, GUNGAME_LADDER } from '/shared/modes.js';
 import { PLAYER, INTERP_DELAY, CLIENT_SEND_RATE, TEAM_NAMES, TEAM_COLORS } from '/shared/constants.js';
@@ -142,8 +142,13 @@ function newMe(id) {
     spawnSeq: 0, protectUntil: 0, firedPress: false, altPress: false,
     inspectT: -1, stepAcc: 0, wasGround: true, team: -1, gg: 0, punch: 0, punchYaw: 0,
     kills: 0, deaths: 0, respawnAt: 0, flinch: 0,
+    mana: PLAYER.manaMax, manaMax: PLAYER.manaMax, nades: {}, curNade: 'he',
+    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0,
   };
 }
+
+const NADE_ICON = { he: '💣', flash: '⚡', smoke: '☁', molotov: '🔥' };
+const NADE_KEY = { he: '4', flash: '5', smoke: '6', molotov: '7' };
 
 export function enterGame(msg) {
   S.active = true;
@@ -175,6 +180,7 @@ export function enterGame(msg) {
 export function exitGame() {
   S.active = false;
   clearProjectiles();
+  clearWorldFx();
   for (const p of S.players.values()) removeAvatar(p);
   S.players.clear();
   if (S.world) { disposeWorld(S.scene, S.world); S.world = null; }
@@ -357,7 +363,7 @@ function updateRemotes(dt) {
 // ════════════════════════════════════════════════════════════════════════
 const VM_POS = {
   rifle: [0.15, -0.16, -0.42], sniper: [0.16, -0.18, -0.48], smg: [0.14, -0.15, -0.38], shotgun: [0.15, -0.16, -0.42],
-  pistol: [0.12, -0.12, -0.38], knife: [0.14, -0.13, -0.34], lmg: [0.16, -0.18, -0.44], launcher: [0.22, -0.19, -0.36],
+  pistol: [0.12, -0.12, -0.38], knife: [0.14, -0.13, -0.34], lmg: [0.16, -0.18, -0.44], launcher: [0.22, -0.19, -0.36], magic: [0.17, -0.16, -0.34], grenade: [0.15, -0.14, -0.3],
 };
 
 function setViewWeapon(wid) {
@@ -664,7 +670,8 @@ function spawnProjectile(m) {
   const mesh = buildProjectile(w.projectile.model);
   mesh.position.set(m.o[0], m.o[1], m.o[2]);
   S.scene.add(mesh);
-  projs.set(m.id, { mesh, v: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), g: w.projectile.gravity, bounce: w.projectile.bounce || 0, smoke: 0, rocket: w.projectile.model === 'rocket', spin: w.projectile.model === 'grenade', age: 0 });
+  const magicCol = { fireball: 0xff6a1a, orb: 0xb06bff }[w.projectile.model];
+  projs.set(m.id, { mesh, v: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), g: w.projectile.gravity, bounce: w.projectile.bounce || 0, smoke: 0, rocket: w.projectile.model === 'rocket', spin: w.projectile.model === 'grenade', trail: magicCol, age: 0 });
   const by = S.players.get(m.by);
   if (by) A.playShot(w.sound, { x: m.o[0], y: m.o[1], z: m.o[2] });
 }
@@ -690,13 +697,22 @@ function updateProjectiles(dt) {
     if (p.spin) { p.mesh.rotation.x += dt * 9; p.mesh.rotation.z += dt * 6; }
     else p.mesh.lookAt(_look.copy(p.mesh.position).sub(p.v));
     if (p.rocket) { p.smoke += dt; if (p.smoke > 0.03) { p.smoke = 0; S.effects.burst(p.mesh.position, null, 0x8a8580, 1, 0.3, 0.25, 0.9, -0.5); } }
+    if (p.trail) { p.smoke += dt; if (p.smoke > 0.02) { p.smoke = 0; S.effects.burst(p.mesh.position, null, p.trail, 1, 0.6, 0.08, 0.3, 0); } }
     if (p.age > 7) { S.scene.remove(p.mesh); projs.delete(id); }
   }
 }
 function projectileHit(m) {
   const p = projs.get(m.id);
   const pos = new THREE.Vector3(m.p[0], m.p[1], m.p[2]);
-  const n = new THREE.Vector3(m.n[0], m.n[1], m.n[2]);
+  const n = m.n ? new THREE.Vector3(m.n[0], m.n[1], m.n[2]) : new THREE.Vector3(0, 1, 0);
+  if (m.g) {
+    // grenade (flash/smoke/molotov) : on retire le projectile, l'effet arrive via smoke/fire/flash
+    if (p) { S.scene.remove(p.mesh); projs.delete(m.id); }
+    if (m.g === 'flash') { S.effects.burst(pos, null, 0xffffff, 10, 5, 0.1, 0.25, 0); A.playFlashbang(m.p, 0.6); }
+    else if (m.g === 'smoke') A.playImpact(m.p);
+    else A.playImpact(m.p);
+    return;
+  }
   if (m.boom) {
     if (p) { S.scene.remove(p.mesh); projs.delete(m.id); }
     S.effects.explosion(pos);
@@ -709,6 +725,91 @@ function projectileHit(m) {
   }
 }
 function clearProjectiles() { for (const p of projs.values()) S.scene.remove(p.mesh); projs.clear(); }
+
+// ── Effets de zone (fumée, feu, tourelles) ───────────────────────────────────
+const smokes = new Map(), fires = new Map(), turrets = new Map();
+function smokeTex() {
+  if (smokeTex._t) return smokeTex._t;
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 2, 32, 32, 30); g.addColorStop(0, 'rgba(210,210,214,0.9)'); g.addColorStop(1, 'rgba(210,210,214,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  smokeTex._t = new THREE.CanvasTexture(c); return smokeTex._t;
+}
+function spawnSmoke(m) {
+  killSmoke(m.id);
+  const grp = new THREE.Group(); grp.position.set(m.p[0], Math.max(0.3, m.p[1]) + 0.3, m.p[2]);
+  const mat = new THREE.SpriteMaterial({ map: smokeTex(), color: 0xd0d0d4, transparent: true, opacity: 0, depthWrite: false });
+  const puffs = [];
+  for (let i = 0; i < 16; i++) {
+    const sp = new THREE.Sprite(mat.clone());
+    const a = Math.random() * 6.28, r = Math.random() * m.r * 0.8;
+    sp.position.set(Math.cos(a) * r, (Math.random() - 0.3) * m.r, Math.sin(a) * r);
+    const sz = m.r * (0.9 + Math.random() * 0.6); sp.scale.set(sz, sz, 1);
+    sp.userData.spin = (Math.random() - 0.5) * 0.4;
+    grp.add(sp); puffs.push(sp);
+  }
+  grp.userData = { noAO: true, t: 0, puffs, r: m.r };
+  S.scene.add(grp);
+  smokes.set(m.id, grp);
+  A.playImpact(m.p);
+}
+function killSmoke(id) { const g = smokes.get(id); if (g) { g.userData.dying = true; } }
+function spawnFireArea(m) {
+  killFire(m.id);
+  const grp = new THREE.Group(); grp.position.set(m.p[0], Math.max(0.05, m.p[1]), m.p[2]);
+  const light = new THREE.PointLight(0xff7a20, 2.2, m.r * 3); light.position.y = 0.6; grp.add(light);
+  grp.userData = { noAO: true, t: 0, r: m.r, light, acc: 0 };
+  S.scene.add(grp);
+  fires.set(m.id, grp);
+}
+function killFire(id) { const g = fires.get(id); if (g) { S.scene.remove(g); fires.delete(id); } }
+function spawnTurret(m) {
+  killTurret(m.id);
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.2, 10), new THREE.MeshStandardMaterial({ color: 0x2a3a30, roughness: 0.7, metalness: 0.3 })); base.position.y = 0.1;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0x3a4a3e })); post.position.y = 0.45;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), new THREE.MeshStandardMaterial({ color: 0x4a5a4e, metalness: 0.4 })); head.position.y = 0.72;
+  const gem = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshBasicMaterial({ color: 0x6affc0 })); gem.material.toneMapped = false; gem.position.y = 0.78;
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.3), new THREE.MeshStandardMaterial({ color: 0x222222 })); gun.position.set(0, 0.72, -0.18);
+  g.add(base, post, head, gem, gun);
+  g.position.set(m.p[0], m.p[1], m.p[2]);
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  g.userData = { head, gun, gem, t: 0 };
+  S.scene.add(g);
+  turrets.set(m.id, g);
+  S.effects.burst(g.position.clone().setY(g.position.y + 0.6), null, 0x6affc0, 14, 3, 0.09, 0.6, 0);
+}
+function killTurret(id) { const g = turrets.get(id); if (g) { S.effects.burst(g.position.clone().setY(g.position.y + 0.6), null, 0x6affc0, 10, 3, 0.08, 0.5, 0); S.scene.remove(g); turrets.delete(id); } }
+function updateWorldFx(dt) {
+  for (const [id, g] of smokes) {
+    const u = g.userData; u.t += dt;
+    const grow = Math.min(1, u.t / 1.2);
+    const fade = u.dying ? Math.max(0, 1 - (u.t - u.fadeStart || 0)) : 1;
+    if (u.dying && u.fadeStart === undefined) u.fadeStart = u.t;
+    const op = u.dying ? Math.max(0, 1 - (u.t - u.fadeStart) / 1.2) : grow;
+    for (const sp of u.puffs) { sp.material.opacity = 0.82 * op; sp.material.rotation += sp.userData.spin * dt; }
+    g.scale.setScalar(0.5 + grow * 0.5);
+    if (u.dying && op <= 0.01) { S.scene.remove(g); smokes.delete(id); }
+  }
+  for (const [, g] of fires) {
+    const u = g.userData; u.t += dt; u.acc += dt;
+    u.light.intensity = 1.8 + Math.sin(u.t * 18) * 0.5;
+    if (u.acc > 0.03) { u.acc = 0; const a = Math.random() * 6.28, r = Math.random() * u.r * 0.9; S.effects.burst(g.position.clone().add(new THREE.Vector3(Math.cos(a) * r, 0.05, Math.sin(a) * r)), new THREE.Vector3(0, 1, 0), Math.random() < 0.5 ? 0xff6a1a : 0xffb020, 1, 1.5, 0.14, 0.6, -2.5); }
+  }
+  for (const [, g] of turrets) {
+    const u = g.userData; u.t += dt;
+    g.userData.gem.material.color.setHSL(0.45, 1, 0.5 + Math.sin(u.t * 4) * 0.15);
+    // oriente la tête vers l'ennemi le plus proche
+    let best = null, bd = 42;
+    for (const p of S.players.values()) { if (!p.alive) continue; if (S.cfg.teams && p.team === S.me.team) continue; const d = Math.hypot(p.x - g.position.x, p.z - g.position.z); if (d < bd) { bd = d; best = p; } }
+    if (best) { const a = Math.atan2(best.x - g.position.x, best.z - g.position.z); u.head.rotation.y = a; u.gun.position.x = g.position.x * 0 + Math.sin(a) * 0.18; u.gun.position.z = Math.cos(a) * 0.18; u.gun.rotation.y = a; }
+  }
+}
+function clearWorldFx() {
+  for (const g of smokes.values()) S.scene.remove(g); smokes.clear();
+  for (const g of fires.values()) S.scene.remove(g); fires.clear();
+  for (const g of turrets.values()) S.scene.remove(g); turrets.clear();
+}
 
 function dirVec(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
 
@@ -761,11 +862,69 @@ function knifeAttack(heavy) {
   }
 }
 
+// ── Sorts (magie) ────────────────────────────────────────────────────────────
+function castSpell(w) {
+  const me = S.me, now = performance.now();
+  me.nextFire = now + w.fireDelay * 1000;
+  me.inspectT = -1; me.protectUntil = 0;
+  me.mana -= w.mana; // prédiction locale, le serveur corrige
+  const o = eyePos();
+  const d = dirFromAngles(me.yaw, me.pitch);
+  send({ t: 'cast', w: me.cur, o: [o.x, o.y, o.z], d, rt: viewTime() });
+  A.playShot(w.sound);
+  // recul / flash au bout du bâton
+  if (S.vm) { S.vm.kick += 0.03; S.vm.kickRot += 0.06; if (S.vm.model.userData.orb) pulseOrb(S.vm.model.userData.orb); }
+  // effets locaux immédiats pour la réactivité
+  if (w.cast === 'proj' || w.cast === 'chain' || w.cast === 'beam') {
+    // les dégâts/impacts viennent du serveur ; on montre juste le départ
+    const from = muzzleWorldPos();
+    const col = ELEM_LOCAL[w.element] || 0xb06bff;
+    if (w.cast === 'beam') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); if (hit.map) S.effects.impact(hit.point, hit.normal); }
+    else if (w.cast === 'chain') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); }
+    else S.effects.burst(from, null, col, 6, 2, 0.06, 0.4, 0);
+  }
+  if (w.cast === 'heal') { healAura(me.body.x, me.body.y, me.body.z, 0x4fe08a); }
+  if (w.cast === 'shield') { healAura(me.body.x, me.body.y, me.body.z, 0xffd23f); }
+  if (w.cast === 'turret') { S.effects.burst(eyePos().add(new THREE.Vector3(...d).multiplyScalar(2.2)), null, 0x6affc0, 10, 2, 0.08, 0.6, 1); }
+}
+const ELEM_LOCAL = { fire: 0xff6a1a, bolt: 0x5ad0ff, ice: 0x9fe8ff, arcane: 0xb06bff, heal: 0x4fe08a, shield: 0xffd23f, tele: 0xc06bff, summon: 0x6affc0 };
+function pulseOrb(orbArr) { for (const o of orbArr) { o.scale.setScalar(1.8); } setTimeout(() => { for (const o of orbArr) o.scale.setScalar(1); }, 90); }
+function healAura(x, y, z, col) { const p = new THREE.Vector3(x, y + 0.5, z); for (let i = 0; i < 16; i++) S.effects.burst(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, Math.random() * 1.6, (Math.random() - 0.5) * 0.8)), new THREE.Vector3(0, 1, 0), col, 1, 0.6, 0.06, 0.8, -1.5); }
+
+// ── Grenades à lancer ────────────────────────────────────────────────────────
+function throwGrenade(under) {
+  const me = S.me, now = performance.now();
+  if (!me.alive || S.ui !== null || now < me.nextThrow || now < me.drawUntil) return;
+  const type = me.curNade;
+  if (!(me.nades[type] > 0)) { A.playClick(null, 1.2); return; }
+  me.nextThrow = now + 650;
+  me.nades = { ...me.nades, [type]: me.nades[type] - 1 }; // prédiction, le serveur corrige
+  const o = eyePos();
+  const d = dirFromAngles(me.yaw, me.pitch);
+  send({ t: 'nade', g: type, o: [o.x, o.y, o.z], d, under: !!under, rt: viewTime() });
+  A.playShot('throw');
+  if (S.vm) { S.vm.swing = 1; S.vm.swingHeavy = false; }
+  refreshNadeBelt();
+}
+function selectNade(type) {
+  if (!GRENADES.includes(type)) return;
+  S.me.curNade = type;
+  refreshNadeBelt();
+  A.playUi && A.playClick(null, 0.9);
+}
+function refreshNadeBelt() {
+  const me = S.me;
+  if (!me.alive || !me.nades || !Object.keys(me.nades).length) { hud.nades([]); return; }
+  hud.nades(GRENADES.map((t) => ({ type: t, icon: NADE_ICON[t], key: NADE_KEY[t], count: me.nades[t] || 0, sel: me.curNade === t })));
+}
+
 function updateWeapon(dt) {
   const me = S.me;
   if (!me.alive || S.state !== 'playing') return;
   const w = WEAPONS[me.cur];
   const now = performance.now();
+  // régénération du mana (local, le serveur corrige)
+  me.mana = Math.min(me.manaMax, me.mana + PLAYER.manaRegen * dt);
   if (me.reloadUntil && now >= me.reloadUntil) finishReload();
   me.shotAccum *= Math.exp(-(w.spread ? w.spread.recover : 5) * dt);
   if (now - me.lastShot > w.fireDelay * 1000 * 1.6 + 60) me.recoilIdx = Math.max(0, me.recoilIdx - dt * 18);
@@ -792,6 +951,14 @@ function updateWeapon(dt) {
   if (w.kind === 'knife') {
     if (S.mouse.left && now >= me.nextFire) knifeAttack(false);
     else if (S.mouse.right && now >= me.nextFire) knifeAttack(true);
+    return;
+  }
+  if (w.kind === 'magic') {
+    if (S.mouse.left && (w.auto || !me.firedPress) && now >= me.nextFire) {
+      me.firedPress = true;
+      if (me.mana < w.mana) { A.playClick(null, 0.8); me.nextFire = now + 300; return; }
+      castSpell(w);
+    }
     return;
   }
   const a = me.ammo[me.cur];
@@ -846,7 +1013,8 @@ function updateMovement(dt) {
   const wasGround = b.onGround;
   const vyBefore = b.vy;
   const boost = X.speed && allowed() ? 2 : 1;
-  stepBody(b, input, dt, S.map.boxes, weaponSpeed(me.cur, me.scoped > 0) * boost);
+  const slow = me.slowUntil > performance.now() ? me.slowMul : 1;
+  stepBody(b, input, dt, S.map.boxes, weaponSpeed(me.cur, me.scoped > 0) * boost * slow);
   if (input.jump && X.jump && allowed()) b.vy = PHYS.jumpVel * 1.9;
   if (!wasGround && b.onGround && vyBefore < -6) A.playLand();
   const hs = Math.hypot(b.vx, b.vz);
@@ -961,6 +1129,9 @@ function updateHud(dt) {
   hud.setHp(me.alive ? me.hp : 0);
   const a = me.ammo[me.cur] || { mag: 0, res: 0 };
   hud.setAmmo(me.cur, a.mag, a.res, me.weapons, me.cur);
+  hud.setMana(me.mana, me.manaMax, me.alive && WEAPONS[me.cur].kind === 'magic');
+  hud.setShield(me.alive ? me.shield : 0);
+  if (me.alive && me.nades && Object.keys(me.nades).length) refreshNadeBelt(); else hud.nades([]);
   hud.setTime((S.matchEnd - serverNow()) / 1000);
   // score en haut
   const myRow = S.board.find((r) => r[0] === me.id);
@@ -1058,6 +1229,7 @@ function loop(t) {
   updateCamera(dt);
   updateViewmodel(dt);
   updateProjectiles(dt);
+  updateWorldFx(dt);
   S.effects.update(dt);
   updateHud(dt);
   const tr = performance.now();
@@ -1169,6 +1341,12 @@ function setupInput() {
     if (e.code === 'KeyQ') { if (me.weapons.includes(me.last)) switchWeapon(me.last); }
     if (e.code === 'KeyR') startReload();
     if (e.code === 'KeyF' && me.reloadUntil < performance.now() && !me.scoped) me.inspectT = 0;
+    // grenades : G lance, 4-7 choisissent le type
+    if (e.code === 'KeyG') throwGrenade(false);
+    if (e.code === 'Digit4' || e.code === 'Numpad4') selectNade('he');
+    if (e.code === 'Digit5' || e.code === 'Numpad5') selectNade('flash');
+    if (e.code === 'Digit6' || e.code === 'Numpad6') selectNade('smoke');
+    if (e.code === 'Digit7' || e.code === 'Numpad7') selectNade('molotov');
   });
   document.addEventListener('keyup', (e) => {
     S.keys.delete(e.code);
@@ -1193,7 +1371,8 @@ function buildLoadoutUI() {
       const b = document.createElement('button');
       b.className = 'lo-btn' + (lo[key] === id ? ' on' : '');
       const it = P.equippedItem(id);
-      b.innerHTML = `${esc(w.name)}<small>${it ? esc(SKINS[it.skin].name) : 'Par défaut'} · ${w.damage} dég.</small>`;
+      const info = w.kind === 'magic' ? `${w.mana} mana` : `${w.damage || '?'} dég.`;
+      b.innerHTML = `${esc(w.name)}<small>${it ? esc(SKINS[it.skin].name) : 'Par défaut'} · ${info}</small>`;
       b.onclick = () => {
         lo[key] = id;
         send({ t: 'loadout', lo });
@@ -1203,9 +1382,9 @@ function buildLoadoutUI() {
       el.appendChild(b);
     }
   };
-  mk(PRIMARIES, $('lo-prim'), 'primary');
+  mk(PRIMARIES.filter((id) => !MAGIC.includes(id)), $('lo-prim'), 'primary');
   mk(SECONDARIES, $('lo-sec'), 'secondary');
-  // ligne « mêlée » créée à la volée
+  // ligne « mêlée »
   let mel = document.getElementById('lo-mel');
   if (!mel) {
     const row = document.createElement('div');
@@ -1215,6 +1394,16 @@ function buildLoadoutUI() {
     mel = document.getElementById('lo-mel');
   }
   mk(MELEES, mel, 'melee');
+  // ligne « magie » (remplace l'arme principale)
+  let mag = document.getElementById('lo-mag');
+  if (!mag) {
+    const row = document.createElement('div');
+    row.className = 'lo-row';
+    row.innerHTML = '<h3>Magie ✦ <small style="opacity:.6;font-size:12px">(remplace l\'arme principale)</small></h3><div id="lo-mag" class="lo-list"></div>';
+    document.getElementById('lo-prim').parentElement.after(row);
+    mag = document.getElementById('lo-mag');
+  }
+  mk(MAGIC, mag, 'primary');
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1276,6 +1465,12 @@ function setupNet() {
     me.protectUntil = performance.now() + m.protect * 1000;
     me.punch = 0; me.punchYaw = 0; me.scoped = 0; me.rezoomAt = 0;
     me.gg = m.gg || 0;
+    me.mana = m.mana !== undefined ? m.mana : PLAYER.manaMax;
+    me.nades = m.nades ? { ...m.nades } : {};
+    if (!GRENADES.includes(me.curNade) || !(me.nades[me.curNade] > 0)) { me.curNade = GRENADES.find((t) => me.nades[t] > 0) || 'he'; }
+    me.slowUntil = 0; me.slowMul = 1; me.shield = 0;
+    hud.setShield(0);
+    refreshNadeBelt();
     giveWeapons(m.weapons, true);
     hud.death(false);
     hud.scope(0);
@@ -1340,6 +1535,35 @@ function setupNet() {
     if (!S.active || !S.me.alive) return;
     const b = S.me.body;
     b.vx += m.v[0]; b.vz += m.v[2]; b.vy = Math.max(b.vy, m.v[1]); b.onGround = false;
+  });
+  on('nades', (m) => { if (!S.active) return; S.me.nades = m.n || {}; if (!(S.me.nades[S.me.curNade] > 0)) { const t = GRENADES.find((x) => S.me.nades[x] > 0); if (t) S.me.curNade = t; } refreshNadeBelt(); });
+  on('mana', (m) => { if (S.active) S.me.mana = m.m; });
+  on('heal', (m) => { if (!S.active) return; S.me.hp = m.hp; healAura(S.me.body.x, S.me.body.y, S.me.body.z, 0x4fe08a); A.playShot && A.playHit(false); });
+  on('shield', (m) => { if (!S.active) return; S.me.shield = m.s; hud.setShield(m.s); });
+  on('slow', (m) => { if (!S.active) return; S.me.slowUntil = performance.now() + m.dur; S.me.slowMul = m.mul; S.me.frostUntil = performance.now() + m.dur; });
+  on('tp', (m) => { if (!S.active) return; const b = S.me.body; const from = new THREE.Vector3(b.x, b.y + 1, b.z); b.x = m.x; b.z = m.z; if (m.y !== undefined) b.y = m.y; b.vx = b.vz = 0; S.effects.burst(from, null, 0xc06bff, 14, 4, 0.08, 0.5, 0); S.effects.burst(new THREE.Vector3(b.x, b.y + 1, b.z), null, 0xc06bff, 14, 4, 0.08, 0.5, 0); });
+  on('flash', (m) => { if (!S.active) return; hud.flash(m.dur, m.i); A.playFlashbang(null, m.i); });
+  on('smoke', (m) => { if (!S.active) return; if (m.add) spawnSmoke(m); else killSmoke(m.id); });
+  on('fire', (m) => { if (!S.active) return; if (m.add) spawnFireArea(m); else killFire(m.id); });
+  on('turret', (m) => { if (!S.active) return; if (m.add) spawnTurret(m); else killTurret(m.id); });
+  on('tfx', (m) => { if (!S.active) return; const tr = turrets.get(m.id); if (tr) { const from = tr.mesh.position.clone().setY(tr.mesh.position.y + 0.55); S.effects.tracer(from, new THREE.Vector3(m.e[0], m.e[1], m.e[2]), 300, 0x6affc0); A.playShot('smg', tr.mesh.position); } });
+  on('nadefx', (m) => { const p = S.players.get(m.id); if (p) A.playShot('throw', { x: p.x, y: p.y + 1.4, z: p.z }); });
+  on('cfx', (m) => {
+    const p = S.players.get(m.id); const w = WEAPONS[m.w];
+    if (!p || !w) return;
+    const col = ELEM_LOCAL[w.element] || 0xb06bff;
+    let from = new THREE.Vector3(m.o[0], m.o[1], m.o[2]);
+    if (p.weapon && p.avatar && p.avatar.visible) { p.weapon.updateMatrixWorld(true); p.weapon.userData.muzzle.getWorldPosition(from); }
+    S.effects.burst(from, null, col, 6, 2, 0.06, 0.4, 0);
+    A.playShot(w.sound, from);
+  });
+  on('sp', (m) => {
+    if (!S.active) return;
+    if (m.k === 'chain') { for (let i = 0; i < m.pts.length - 1; i++) { const a = new THREE.Vector3(...m.pts[i]), b = new THREE.Vector3(...m.pts[i + 1]); S.effects.beam(a, b, 0x5ad0ff); } A.playShot('cast_bolt', new THREE.Vector3(...m.pts[0])); }
+    else if (m.k === 'beam') { S.effects.beam(new THREE.Vector3(...m.o), new THREE.Vector3(...m.e), 0x9fe8ff); }
+    else if (m.k === 'heal') { const p = m.id === S.me.id ? S.me.body : S.players.get(m.id); if (p) healAura(p.x, p.y, p.z, 0x4fe08a); }
+    else if (m.k === 'shield') { const p = m.id === S.me.id ? S.me.body : S.players.get(m.id); if (p) healAura(p.x, p.y, p.z, 0xffd23f); }
+    else if (m.k === 'blink') { S.effects.burst(new THREE.Vector3(...m.p).setY(m.p[1] + 1), null, 0xc06bff, 14, 4, 0.08, 0.5, 0); }
   });
   on('rl', (m) => { const p = S.players.get(m.id); if (p) A.playReload(WEAPONS[p.wid]?.kind, { x: p.x, y: p.y + 1.2, z: p.z }); });
   on('hit', (m) => {
@@ -1475,6 +1699,10 @@ if (new URLSearchParams(location.search).has('test')) {
     scope() { toggleScope(); },
     inspect() { S.me.inspectT = 0; },
     look(yaw, pitch) { S.me.yaw = yaw; S.me.pitch = pitch; },
+    throwNade(type) { S.me.curNade = type; throwGrenade(false); },
+    selectNade(type) { selectNade(type); },
+    castNow() { const w = WEAPONS[S.me.cur]; if (w.kind === 'magic') { S.me.firedPress = false; S.me.nextFire = 0; castSpell(w); } },
+    me() { return S.me; },
     emit(m) { dispatch(m); },
     aimAtNearest() {
       const me = S.me.body; let best = null, bd = 1e9;

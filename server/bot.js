@@ -59,6 +59,7 @@ export class BotBrain {
 
   sense(t) {
     const p = this.p, b = p.body, room = this.room;
+    if (p.blindUntil && t < p.blindUntil) { this.visible = false; this.target = null; return; }
     const boxes = room.map.boxes;
     const ex = b.x, ey = p.eye(), ez = b.z;
     const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw);
@@ -72,8 +73,9 @@ export class BotBrain {
       const dot = dist > 0.01 ? (dx * fx + dz * fz) / dist : 1;
       if (dot < this.cfg.fovCos && dist > 3 && !heard) continue;
       const h = q.body.crouch ? PLAYER.crouchHeight : PLAYER.height;
-      const vis = lineOfSight(boxes, ex, ey, ez, q.body.x, q.body.y + h - 0.15, q.body.z) ||
-                  lineOfSight(boxes, ex, ey, ez, q.body.x, q.body.y + h * 0.6, q.body.z);
+      const vis = (lineOfSight(boxes, ex, ey, ez, q.body.x, q.body.y + h - 0.15, q.body.z) ||
+                  lineOfSight(boxes, ex, ey, ez, q.body.x, q.body.y + h * 0.6, q.body.z)) &&
+                  !(room.smokes.length && room.smokeBlocks(ex, ey, ez, q.body.x, q.body.y + h * 0.6, q.body.z));
       if (!vis) {
         if (heard && (!this.lastSeen || t > this.lastSeenUntil)) {
           this.lastSeen = [q.body.x, q.body.z];
@@ -229,7 +231,7 @@ export class BotBrain {
     }
     if (this.jumpWant && b.onGround) { input.jump = true; this.jumpWant = false; }
 
-    stepBody(b, input, dt, boxes, weaponSpeed(p.cur, p.scoped));
+    stepBody(b, input, dt, boxes, weaponSpeed(p.cur, p.scoped) * (p.slowUntil && t < p.slowUntil ? p.slowMul : 1));
     if (b.y < -10) { room.damage(p, p, 999, 'knife', false, {}); }
   }
 

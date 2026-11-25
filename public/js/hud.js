@@ -24,7 +24,7 @@ export const hud = {
     const w = WEAPONS[wid];
     $('weap-name').textContent = w ? w.name : '';
     const m = $('ammo-mag');
-    if (!w || w.kind === 'knife') { m.textContent = '∞'; $('ammo-res').textContent = ''; m.classList.remove('low'); }
+    if (!w || w.kind === 'knife' || w.kind === 'magic') { m.textContent = w && w.kind === 'magic' ? '✦' : '∞'; $('ammo-res').textContent = ''; m.classList.remove('low'); }
     else {
       m.textContent = mag;
       $('ammo-res').textContent = ' / ' + res;
@@ -33,6 +33,35 @@ export const hud = {
     const slots = $('weap-slots');
     const html = weapons.map((id) => `<span class="${id === cur ? 'on' : ''}">${WEAPONS[id].slot} ${esc(WEAPONS[id].name)}</span>`).join('');
     if (slots.innerHTML !== html) slots.innerHTML = html;
+  },
+
+  setMana(cur, max, show) {
+    const box = $('mana-box');
+    box.classList.toggle('hidden', !show);
+    if (!show) return;
+    const pct = Math.max(0, Math.min(1, cur / max));
+    $('mana-bar').firstElementChild.style.width = (pct * 100) + '%';
+    $('mana-val').textContent = Math.round(cur);
+  },
+
+  setShield(val) {
+    const el = $('shield-ind');
+    el.classList.toggle('hidden', !(val > 0));
+    if (val > 0) $('shield-val').textContent = Math.round(val);
+  },
+
+  // belt = [{type, icon, name, count, sel}]
+  nades(belt) {
+    const el = $('nade-belt');
+    if (!belt || !belt.length) { el.innerHTML = ''; return; }
+    el.innerHTML = belt.map((n) => `<div class="nade-slot ${n.count > 0 ? 'has' : ''} ${n.sel ? 'sel' : ''}"><div class="ni">${n.icon}</div><div class="nc">${n.count}</div><div class="nk">${n.key}</div></div>`).join('');
+  },
+
+  flash(dur, intensity) {
+    const el = $('flash-overlay');
+    el.style.transition = 'none';
+    el.style.opacity = String(Math.min(1, 0.6 + intensity * 0.4));
+    requestAnimationFrame(() => { el.style.transition = `opacity ${(dur / 1000).toFixed(2)}s ease-out`; el.style.opacity = '0'; });
   },
 
   setTime(sec) {
