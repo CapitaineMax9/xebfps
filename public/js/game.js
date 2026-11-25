@@ -399,6 +399,8 @@ function updateViewmodel(dt) {
   if (!vm) return;
   const w = WEAPONS[vm.wid];
   const now = performance.now();
+  // canons rotatifs du minigun (tournent quand on vient de tirer)
+  if (vm.model.userData.spin) { const firing = now - me.lastShot < 180 ? 1 : 0.15; vm.spinV = (vm.spinV || 0) * 0.9 + firing * 30 * 0.1; vm.model.userData.spin.rotation.z += vm.spinV * dt; }
   vm.root.visible = me.alive && !me.scoped && S.state === 'playing';
   vm.flashT -= dt;
   vm.flash.visible = vm.flashT > 0;
@@ -662,7 +664,7 @@ function spawnProjectile(m) {
   const mesh = buildProjectile(w.projectile.model);
   mesh.position.set(m.o[0], m.o[1], m.o[2]);
   S.scene.add(mesh);
-  projs.set(m.id, { mesh, v: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), g: w.projectile.gravity, smoke: 0, rocket: w.projectile.model === 'rocket', age: 0 });
+  projs.set(m.id, { mesh, v: new THREE.Vector3(m.v[0], m.v[1], m.v[2]), g: w.projectile.gravity, bounce: w.projectile.bounce || 0, smoke: 0, rocket: w.projectile.model === 'rocket', spin: w.projectile.model === 'grenade', age: 0 });
   const by = S.players.get(m.by);
   if (by) A.playShot(w.sound, { x: m.o[0], y: m.o[1], z: m.o[2] });
 }
@@ -672,8 +674,21 @@ function updateProjectiles(dt) {
     p.age += dt;
     if (p.stuck) { if (p.age > 5) { S.scene.remove(p.mesh); projs.delete(id); } continue; }
     p.v.y -= p.g * dt;
-    p.mesh.position.addScaledVector(p.v, dt);
-    p.mesh.lookAt(_look.copy(p.mesh.position).sub(p.v));
+    const step = p.v.clone().multiplyScalar(dt);
+    const sp = step.length();
+    if (p.bounce && sp > 1e-4) {
+      // rebond visuel contre le décor
+      const dir = step.clone().multiplyScalar(1 / sp);
+      const mh = raycastMap(S.map.boxes, p.mesh.position.x, p.mesh.position.y, p.mesh.position.z, dir.x, dir.y, dir.z, sp);
+      if (mh.t < sp) {
+        const n = new THREE.Vector3(mh.nx, mh.ny, mh.nz);
+        p.mesh.position.addScaledVector(dir, Math.max(0, mh.t - 0.02));
+        p.v.reflect(n).multiplyScalar(p.bounce);
+        p.mesh.position.addScaledVector(n, 0.05);
+      } else p.mesh.position.add(step);
+    } else p.mesh.position.add(step);
+    if (p.spin) { p.mesh.rotation.x += dt * 9; p.mesh.rotation.z += dt * 6; }
+    else p.mesh.lookAt(_look.copy(p.mesh.position).sub(p.v));
     if (p.rocket) { p.smoke += dt; if (p.smoke > 0.03) { p.smoke = 0; S.effects.burst(p.mesh.position, null, 0x8a8580, 1, 0.3, 0.25, 0.9, -0.5); } }
     if (p.age > 7) { S.scene.remove(p.mesh); projs.delete(id); }
   }
@@ -736,7 +751,7 @@ function knifeAttack(heavy) {
   const d = dirFromAngles(me.yaw, me.pitch);
   send({ t: 'knife', heavy, w: me.cur, o: [o.x, o.y, o.z], d, rt: viewTime() });
   if (S.vm) { S.vm.swing = 1; S.vm.swingHeavy = heavy; }
-  A.playKnife(null, false);
+  if (w.id === 'saber') A.playSaber(null, true); else A.playKnife(null, false);
   // impact sur mur
   const dv = dirVec(d);
   const mh = raycastMap(S.map.boxes, o.x, o.y, o.z, dv.x, dv.y, dv.z, heavy ? w.heavyRange : w.range);
@@ -1310,9 +1325,16 @@ function setupNet() {
     const p = S.players.get(m.id);
     if (!p) return;
     const pos = { x: p.x, y: p.y + 1.4, z: p.z };
-    if (m.w === 'pan' && m.hit) A.playBonk(pos); else A.playKnife(pos, m.hit);
+    if (m.w === 'pan' && m.hit) A.playBonk(pos); else if (m.w === 'saber') A.playSaber(pos, true); else A.playKnife(pos, m.hit);
   });
   on('pj', (m) => { if (S.active) spawnProjectile(m); });
+  on('pb', (m) => {
+    const p = projs.get(m.id);
+    if (!p) return;
+    p.mesh.position.set(m.p[0], m.p[1], m.p[2]);
+    p.v.set(m.v[0], m.v[1], m.v[2]);
+    A.playImpact({ x: m.p[0], y: m.p[1], z: m.p[2] });
+  });
   on('px', (m) => { if (S.active) projectileHit(m); });
   on('kb', (m) => {
     if (!S.active || !S.me.alive) return;

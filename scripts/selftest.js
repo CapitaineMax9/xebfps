@@ -106,7 +106,9 @@ for (const mode of MODE_ORDER) {
 
 await accountTests();
 await weaponTests();
+await weaponTests2();
 await boardTests();
+await skinGenTests();
 await ACC.store.close();
 console.log(errors ? `\n${errors} erreur(s)` : '\nTout est OK');
 process.exit(errors ? 1 : 0);
@@ -190,6 +192,77 @@ async function weaponTests() {
   let accepted = 0;
   for (let i = 0; i < 3; i++) { if (room.canFire(a, 'famas')) accepted++; fake += 66; }
   if (accepted === 3) ok('FAMAS : rafale de 3 balles acceptée'); else fail(`FAMAS : ${accepted}/3 balles acceptées`);
+}
+
+// ── Nouvelles armes (lot 2) ───────────────────────────────────────────────
+async function weaponTests2() {
+  console.log('Nouvelles armes');
+  const W = (await import('../shared/weapons.js'));
+  fake = 9000;
+  const room = new Room('t_armes2', { mode: 'ffa', map: 'oasis', bots: 0, maxPlayers: 8 });
+  const mk = async (name) => { const { acc } = await ACC.authenticate(null, name); return room.addHuman(fakeWs([]), acc); };
+  const [a, b] = [await mk('A2'), await mk('B2')];
+  for (let i = 0; i < 60; i++) { fake += 33; room.tick(1 / 30); }
+  const place = (p, x, z, yaw = 0) => { p.body.x = x; p.body.y = 0; p.body.z = z; p.body.crouch = false; p.yaw = yaw; p.hp = 100; p.alive = true; p.protectUntil = 0; p.history.length = 0; };
+  const eye = (p) => [p.body.x, p.body.y + 1.62, p.body.z];
+  const give = (p, list) => { p.weapons = list; p.lastShot = {}; };
+  // toutes les nouvelles armes à tir instantané touchent une cible proche
+  const hitscan = ['m4a4', 'sg553', 'bizon', 'mp5sd', 'mag7', 'sawedoff', 'negev', 'g3sg1', 'p250', 'cz75', 'p2000', 'minigun'];
+  let okGuns = 0, total = 0;
+  for (const wid of hitscan) {
+    total++;
+    place(a, 0, 14); place(b, 0, 10); give(a, [wid]); fake += 2000;
+    const dir = W.dirFromAngles(a.yaw, a.pitch);
+    room.fire(a, wid, eye(a), [dir], fake, false);
+    if (b.hp < 100) okGuns++; else fail(`${wid} : cible intacte (${b.hp} PV)`);
+  }
+  if (okGuns === total) ok(`${total} nouvelles armes à tir instantané touchent leur cible`);
+  // lance-grenades : touche directe explose et tue
+  place(a, 0, 14); place(b, 0, 9); give(a, ['gl']); fake += 2000;
+  room.fire(a, 'gl', eye(a), [[0, 0, -1]], fake, false);
+  for (let i = 0; i < 60 && room.projectiles.length; i++) { fake += 33; room.stepProjectiles(1 / 30); }
+  if (b.hp <= 0) ok('lance-grenades : touche directe explose et tue'); else fail(`lance-grenades : B ${b.hp} PV, projectiles restants ${room.projectiles.length}`);
+  // lance-grenades : la grenade rebondit sur un mur puis explose (fuse)
+  place(a, 20, 0); place(b, 24, 0); give(a, ['gl']); fake += 2000;
+  room.fire(a, 'gl', eye(a), [[1, 0.3, 0]], fake, false); // tir en cloche vers le mur/sol
+  let exploded = false;
+  for (let i = 0; i < 120 && room.projectiles.length; i++) { fake += 33; room.stepProjectiles(1 / 30); }
+  exploded = room.projectiles.length === 0;
+  if (exploded) ok('lance-grenades : la grenade finit par exploser (mèche)'); else fail('grenade jamais explosée');
+  // sabre laser : coup lourd dans le dos tue
+  place(a, 0, 14); place(b, 0, 12.6, 0); give(a, ['saber']); fake += 2000;
+  room.knife(a, true, eye(a), [0, -0.1, -1], fake, 'saber');
+  if (!b.alive) ok('sabre laser : coup lourd mortel'); else fail(`sabre : B ${b.hp} PV`);
+  // chaque arme a bien des stats cohérentes
+  let miss = 0;
+  for (const [id, w] of Object.entries(W.WEAPONS)) { if (w.kind !== 'knife' && (!w.sound || w.mag === undefined)) miss++; }
+  if (!miss) ok(`${Object.keys(W.WEAPONS).length} armes définies, stats complètes`); else fail(miss + ' armes incomplètes');
+}
+
+// ── Catalogue de skins généré ─────────────────────────────────────────────
+async function skinGenTests() {
+  console.log('Skins générés');
+  const { SKINS, CASES, makeItem, rollCase, RARITY_ORDER } = await import('../shared/skins.js');
+  const n = Object.keys(SKINS).length;
+  if (n >= 500) ok(`${n} skins au catalogue (${CASES.length} caisses)`); else fail(`seulement ${n} skins`);
+  // identifiants figés : repères stables pour ne pas casser les inventaires
+  const anchors = ['g0_ak47', 'g0_awp', 'g9_awp', 'ak_inferno', 'awp_dragon', 'pan_fondu'];
+  const missing = anchors.filter((id) => !SKINS[id]);
+  if (!missing.length) ok('identifiants de skins figés présents'); else fail('ids manquants : ' + missing.join(','));
+  // chaque skin référence une arme et un motif connus
+  const { WEAPONS } = await import('../shared/weapons.js');
+  let bad = 0;
+  for (const s of Object.values(SKINS)) { if (!WEAPONS[s.weapon]) { bad++; } if (!s.colors || !s.colors.length) bad++; }
+  if (!bad) ok('tous les skins pointent vers une arme valide'); else fail(bad + ' skins invalides');
+  // toutes les caisses tirables sans crash
+  let rolls = 0;
+  for (const c of CASES) for (let i = 0; i < 200; i++) { const it = rollCase(c); if (!it || !SKINS[it.skin]) { fail('tirage cassé dans ' + c.id); break; } rolls++; }
+  ok(`${rolls} tirages de caisses sans erreur`);
+  // combien de skins par arme (min)
+  const per = {}; for (const s of Object.values(SKINS)) per[s.weapon] = (per[s.weapon] || 0) + 1;
+  const min = Math.min(...Object.values(per));
+  if (min >= 4) ok(`chaque arme a au moins ${min} skins`); else fail('une arme a trop peu de skins');
+  void makeItem; void RARITY_ORDER;
 }
 
 // ── Caisses en masse + classement ─────────────────────────────────────────

@@ -116,7 +116,16 @@ Object.assign(SHOTS, {
     tone(d, t + 0.02, 0.35, { freq: 660, freqEnd: 880, gain: 0.25, type: 'square' });
   },
   zap: (d, t) => { tone(d, t, 0.4, { freq: 60, freqEnd: 55, gain: 0.5, type: 'square' }); noise(d, t, 0.4, { freq: 5000, type: 'highpass', gain: 0.5 }); },
+  minigun: (d, t) => { noise(d, t, 0.1, { freq: 2800, freqEnd: 500, gain: 0.7 }); tone(d, t, 0.05, { freq: 140, freqEnd: 70, gain: 0.4, type: 'square' }); },
 });
+
+export function playSaber(pos = null, swing = false) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(pos, 0.6);
+  if (swing) { tone(d, t, 0.3, { freq: 420, freqEnd: 180, gain: 0.4, type: 'sawtooth' }); noise(d, t, 0.25, { freq: 1200, type: 'bandpass', q: 3, gain: 0.3, attack: 0.03 }); }
+  else { tone(d, t, 0.4, { freq: 90, gain: 0.3, type: 'sawtooth' }); tone(d, t, 0.4, { freq: 180, gain: 0.15, type: 'square' }); }
+}
 
 export function playBonk(pos = null) {
   if (!ctx) return;

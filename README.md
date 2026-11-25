@@ -19,22 +19,22 @@ et laissent leur place dès qu'un humain arrive.
 
 **Cartes :** Oasis (village du désert, longs couloirs pour l'AWP), Docks (conteneurs, combats rapprochés), Duel (carte longue type « awp_ »).
 
-**30 armes :**
-- Fusils : AK-47, M4A1-S, FAMAS (rafales de 3), Galil AR, AUG (lunette)
-- Snipers : AWP, SSG 08, SCAR-20 (semi-automatique)
-- Mitraillettes : MP9, MAC-10, MP7, UMP-45, P90
-- Lourdes : Nova, XM1014, M249
-- Pistolets : USP-S, Glock-18, Desert Eagle, Five-SeveN, Tec-9, R8 Revolver, Dual Berettas
-- **Loufoques** : Railgun (traverse les joueurs alignés), Lance-roquettes (explosion, souffle, rocket jump), Arbalète (carreau soumis à la gravité), Lance-confettis, Taser Zeus (une charge, un kill)
-- Corps à corps : couteau (Karambit, Baïonnette, Papillon, Couteau pliant avec un skin ★) ou **poêle** (BONK).
+**44 armes :**
+- Fusils : AK-47, M4A1-S, M4A4, FAMAS (rafales de 3), Galil AR, AUG (lunette), SG 553 (lunette)
+- Snipers : AWP, SSG 08, SCAR-20, G3SG1 (semi-automatiques)
+- Mitraillettes : MP9, MAC-10, MP7, MP5-SD, UMP-45, PP-Bizon (64 balles), P90
+- Lourdes : Nova, XM1014, MAG-7, Sawed-Off, M249, Negev
+- Pistolets : USP-S, Glock-18, P2000, Desert Eagle, Five-SeveN, P250, Tec-9, CZ75-Auto, R8 Revolver, Dual Berettas
+- **Loufoques** : Minigun (200 balles, canons rotatifs), Railgun (traverse les joueurs alignés), Lance-roquettes, Lance-grenades (la grenade rebondit avant d'exploser), Arbalète, Lance-confettis, Taser Zeus
+- Corps à corps : couteau (Karambit, Baïonnette, Papillon, Couteau pliant), **poêle** (BONK) ou **sabre laser** (grande allonge).
 
 Choix de l'arme principale, du pistolet et de l'arme de corps à corps avec **B**.
 
 ## Skins
 
-- 8 caisses, **135 skins** dont **21 skins d'AWP**, des couteaux ★ et des **poêles ★** (Or Massif, Doppler, Fondu).
+- **18 caisses, plus de 570 skins** : chaque arme a au moins une dizaine d'apparences (camouflages, néon, galaxie, cristal, plasma, doppler…), plus des couteaux, poêles et sabres ★.
+- **10 collections** (Spectre, Brasier, Abysse, Jade, Nocturne, Prisme, Titane, Savane, Cosmos, Arcade) couvrant toutes les armes, en plus des caisses thématiques.
 - **Ouverture en masse** : x1 (avec la roulette), x5, x10 ou **x100** d'un coup, avec écran de résultats, meilleur objet et vente groupée des objets courants.
-- **Caisse Arsenal** et **Caisse Loufoque** pour les nouvelles armes.
 - Inventaire jusqu'à **10 000 objets**, avec pagination et 3 façons de vendre vite : **tout vendre par rareté**
   (les objets équipés, StatKill™ et ★ sont protégés), **mode sélection** (cocher puis vendre) et un bouton
   **« Vendre »** au survol de chaque objet.
