@@ -193,12 +193,105 @@ export const WEAPONS = {
     damage: 55, heavyDamage: 95, backstab: 120, heavyBackstab: 200,
     range: 1.85, heavyRange: 1.75, fireDelay: 0.6, heavyDelay: 1.2, draw: 0.4, sound: 'bonk',
   },
+
+  // ── Fusils supplémentaires ─────────────────────────────────────────────
+  m4a4: {
+    id: 'm4a4', name: 'M4A4', slot: 1, kind: 'rifle', auto: true,
+    damage: 33, rangeMod: 0.97, range: 150, fireDelay: 0.09, mag: 30, reserve: 90, reload: 3.1, draw: 0.7,
+    speed: 5.72, spread: { base: 0.0032, move: 0.1, air: 0.24, crouch: 0.75, shot: 0.005, recover: 5 },
+    recoil: { v: 0.012, h: 0.009, first: 0 }, sound: 'ak',
+  },
+  sg553: {
+    id: 'sg553', name: 'SG 553', slot: 1, kind: 'rifle', auto: true,
+    damage: 33, rangeMod: 0.99, range: 160, fireDelay: 0.09, mag: 30, reserve: 90, reload: 3.0, draw: 0.8,
+    speed: 5.46, scopedSpeed: 4.0, scope: [40],
+    spread: { base: 0.004, scoped: 0.0013, move: 0.11, air: 0.25, crouch: 0.75, shot: 0.006, recover: 5 },
+    recoil: { v: 0.013, h: 0.009, first: 0 }, sound: 'ak',
+  },
+  // ── Mitraillettes supplémentaires ──────────────────────────────────────
+  bizon: {
+    id: 'bizon', name: 'PP-Bizon', slot: 1, kind: 'smg', auto: true,
+    damage: 27, rangeMod: 0.78, range: 60, fireDelay: 0.08, mag: 64, reserve: 120, reload: 2.4, draw: 0.6,
+    speed: 5.84, spread: { base: 0.011, move: 0.02, air: 0.09, crouch: 0.85, shot: 0.004, recover: 6 },
+    recoil: { v: 0.008, h: 0.006, first: 0.003 }, sound: 'smg',
+  },
+  mp5sd: {
+    id: 'mp5sd', name: 'MP5-SD', slot: 1, kind: 'smg', auto: true, silenced: true,
+    damage: 27, rangeMod: 0.86, range: 70, fireDelay: 0.08, mag: 30, reserve: 120, reload: 3.0, draw: 0.6,
+    speed: 5.84, spread: { base: 0.008, move: 0.02, air: 0.09, crouch: 0.85, shot: 0.004, recover: 6 },
+    recoil: { v: 0.009, h: 0.006, first: 0.003 }, sound: 'silenced',
+  },
+  // ── Fusils à pompe supplémentaires ─────────────────────────────────────
+  mag7: {
+    id: 'mag7', name: 'MAG-7', slot: 1, kind: 'shotgun', auto: false, pellets: 8, pelletSpread: 0.065,
+    damage: 24, rangeMod: 0.5, range: 25, fireDelay: 0.8, mag: 5, reserve: 32, reload: 0.5, shellReload: true, draw: 0.6,
+    speed: 5.5, spread: { base: 0.002, move: 0.02, air: 0.06, crouch: 0.9, shot: 0, recover: 6 },
+    recoil: { v: 0.05, h: 0.01, first: 0.05 }, sound: 'shotgun',
+  },
+  sawedoff: {
+    id: 'sawedoff', name: 'Sawed-Off', slot: 1, kind: 'shotgun', auto: false, pellets: 9, pelletSpread: 0.085,
+    damage: 28, rangeMod: 0.4, range: 20, fireDelay: 0.7, mag: 7, reserve: 32, reload: 0.5, shellReload: true, draw: 0.6,
+    speed: 5.46, spread: { base: 0.003, move: 0.02, air: 0.06, crouch: 0.9, shot: 0, recover: 6 },
+    recoil: { v: 0.055, h: 0.012, first: 0.055 }, sound: 'shotgun',
+  },
+  // ── Lourde + sniper auto ───────────────────────────────────────────────
+  negev: {
+    id: 'negev', name: 'Negev', slot: 1, kind: 'lmg', auto: true,
+    damage: 30, rangeMod: 0.95, range: 130, fireDelay: 0.07, mag: 150, reserve: 300, reload: 6.0, draw: 1.1,
+    speed: 4.8, spread: { base: 0.012, move: 0.18, air: 0.32, crouch: 0.65, shot: 0.008, recover: 3 },
+    recoil: { v: 0.01, h: 0.014, first: 0.004 }, sound: 'lmg',
+  },
+  g3sg1: {
+    id: 'g3sg1', name: 'G3SG1', slot: 1, kind: 'sniper', auto: false, semiAuto: true,
+    damage: 80, rangeMod: 0.98, range: 220, fireDelay: 0.25, mag: 20, reserve: 90, reload: 3.3, draw: 1.0,
+    speed: 5.08, scopedSpeed: 3.2, scope: [40, 15],
+    spread: { base: 0.05, scoped: 0.0025, move: 0.12, air: 0.25, crouch: 0.85, shot: 0.012, recover: 4 },
+    recoil: { v: 0.025, h: 0.006, first: 0.025 }, sound: 'sniper',
+  },
+  // ── Pistolets supplémentaires ──────────────────────────────────────────
+  p250: {
+    id: 'p250', name: 'P250', slot: 2, kind: 'pistol', auto: false,
+    damage: 35, rangeMod: 0.8, range: 70, fireDelay: 0.15, mag: 13, reserve: 26, reload: 2.2, draw: 0.5,
+    speed: 6.1, spread: { base: 0.006, move: 0.03, air: 0.11, crouch: 0.8, shot: 0.013, recover: 5 },
+    recoil: { v: 0.013, h: 0.005, first: 0 }, sound: 'pistol',
+  },
+  cz75: {
+    id: 'cz75', name: 'CZ75-Auto', slot: 2, kind: 'pistol', auto: true,
+    damage: 31, rangeMod: 0.78, range: 60, fireDelay: 0.07, mag: 12, reserve: 12, reload: 2.7, draw: 0.5,
+    speed: 6.1, spread: { base: 0.01, move: 0.035, air: 0.12, crouch: 0.8, shot: 0.014, recover: 5 },
+    recoil: { v: 0.014, h: 0.008, first: 0 }, sound: 'pistol',
+  },
+  p2000: {
+    id: 'p2000', name: 'P2000', slot: 2, kind: 'pistol', auto: false,
+    damage: 35, rangeMod: 0.86, range: 90, fireDelay: 0.17, mag: 13, reserve: 52, reload: 2.2, draw: 0.5,
+    speed: 6.1, spread: { base: 0.004, move: 0.03, air: 0.11, crouch: 0.8, shot: 0.012, recover: 5 },
+    recoil: { v: 0.013, h: 0.004, first: 0 }, sound: 'pistol',
+  },
+  // ── Armes loufoques supplémentaires ────────────────────────────────────
+  minigun: {
+    id: 'minigun', name: 'Minigun', slot: 1, kind: 'lmg', auto: true, spinup: 0.5,
+    damage: 26, rangeMod: 0.9, range: 120, fireDelay: 0.045, mag: 200, reserve: 200, reload: 7.0, draw: 1.4,
+    speed: 4.3, spread: { base: 0.02, move: 0.2, air: 0.35, crouch: 0.7, shot: 0.006, recover: 3 },
+    recoil: { v: 0.006, h: 0.014, first: 0.002 }, sound: 'minigun',
+  },
+  gl: {
+    id: 'gl', name: 'Lance-grenades', slot: 1, kind: 'launcher', auto: false,
+    projectile: { speed: 36, gravity: 9, splash: 4.0, self: 0.4, model: 'grenade', bounce: 0.45, fuse: 1500 },
+    damage: 110, rangeMod: 1, range: 200, fireDelay: 0.9, mag: 1, reserve: 16, reload: 2.0, draw: 0.8,
+    speed: 5.5, spread: { base: 0.004, move: 0.04, air: 0.08, crouch: 0.9, shot: 0, recover: 6 },
+    recoil: { v: 0.045, h: 0.01, first: 0.045 }, sound: 'rpg',
+  },
+  saber: {
+    id: 'saber', name: 'Sabre laser', slot: 3, kind: 'knife', speed: 6.4, glow: true,
+    damage: 70, heavyDamage: 120, backstab: 160, heavyBackstab: 250,
+    range: 2.6, heavyRange: 2.4, fireDelay: 0.38, heavyDelay: 0.85, draw: 0.4, sound: 'saber',
+  },
 };
 
-export const PRIMARIES = ['ak47', 'm4a1s', 'famas', 'galil', 'aug', 'awp', 'ssg08', 'scar20', 'mp9', 'mac10', 'mp7', 'ump45', 'p90', 'nova', 'xm1014', 'm249', 'railgun', 'rpg', 'crossbow', 'confetti'];
-export const SECONDARIES = ['usp', 'glock', 'deagle', 'fiveseven', 'tec9', 'r8', 'dualies', 'zeus'];
-export const MELEES = ['knife', 'pan'];
-export const SKINNABLE = ['knife', 'pan', 'glock', 'usp', 'deagle', 'fiveseven', 'tec9', 'r8', 'dualies', 'zeus', 'mp9', 'mac10', 'mp7', 'ump45', 'p90', 'nova', 'xm1014', 'confetti', 'ak47', 'm4a1s', 'famas', 'galil', 'aug', 'm249', 'ssg08', 'scar20', 'awp', 'railgun', 'rpg', 'crossbow'];
+export const PRIMARIES = ['ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'awp', 'ssg08', 'scar20', 'g3sg1', 'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90', 'nova', 'xm1014', 'mag7', 'sawedoff', 'm249', 'negev', 'minigun', 'railgun', 'rpg', 'gl', 'crossbow', 'confetti'];
+export const SECONDARIES = ['usp', 'glock', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus'];
+export const MELEES = ['knife', 'pan', 'saber'];
+export const SKINNABLE = ['knife', 'pan', 'saber', 'glock', 'usp', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus', 'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90', 'nova', 'xm1014', 'mag7', 'sawedoff', 'confetti', 'ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'm249', 'negev', 'minigun', 'ssg08', 'scar20', 'g3sg1', 'awp', 'railgun', 'rpg', 'gl', 'crossbow'];
 
 // Délai minimal entre deux tirs (rafales comprises), utilisé pour la vérification côté serveur
 export function minFireDelay(w) { return w.burst ? Math.min(w.burstDelay, w.fireDelay) : w.fireDelay; }

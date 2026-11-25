@@ -188,6 +188,121 @@ add('pan_or', 'pan', 'Or Massif', 'gold', 'goldleaf', ['#8a6a10', '#ffd23f', '#f
 add('pan_doppler', 'pan', 'Doppler', 'gold', 'doppler', ['#0a0a12', '#d0207a', '#3a2fd6'], { fin: { metal: 0.95, rough: 0.1 }, maxF: 0.08 });
 add('pan_fondu', 'pan', 'Fondu', 'gold', 'fade', ['#ffd23f', '#ff3fa4', '#7a3cff'], { fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Générateur de skins : finitions appliquées à toutes les armes.
+// Les identifiants (g<col>_<arme>) sont FIGÉS : ne jamais changer l'ordre de
+// GEN_GUNS ni de GEN_COLLECTIONS (sous peine de casser les inventaires).
+// ═══════════════════════════════════════════════════════════════════════════
+const GEN_GUNS = [
+  'ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553',
+  'awp', 'ssg08', 'scar20', 'g3sg1',
+  'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90',
+  'nova', 'xm1014', 'mag7', 'sawedoff', 'm249', 'negev', 'minigun',
+  'usp', 'glock', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus',
+  'railgun', 'rpg', 'gl', 'crossbow', 'confetti',
+];
+
+// Chaque finition : [nom, motif, couleurs, rareté, fin?]
+const GUN_FINISHES = [
+  // ── Qualité Militaire ──
+  ['Sable', 'camo', ['#c8b48a', '#a38a5f', '#7d6a48', '#e0d2b0'], 'milspec'],
+  ['Forêt', 'camo', ['#3a4a28', '#5d7a3a', '#1f2a14', '#7a8a4a'], 'milspec'],
+  ['Banquise', 'alpine', ['#e8eef4', '#b8c6d4', '#8a9aa8'], 'milspec'],
+  ['Jungle', 'camo', ['#2f4a1c', '#6b8a2e', '#1a2a0f', '#a3b85a'], 'milspec'],
+  ['Pixel Urbain', 'digital', ['#8a8f96', '#5b6068', '#c3c7cc', '#3a3e44'], 'milspec'],
+  ['Opération Nuit', 'digital', ['#1a2230', '#2e3c52', '#0d131c', '#3f5068'], 'milspec'],
+  ['Bleu Acier', 'solid', ['#2f5d8c', '#1d3b5a'], 'milspec', { metal: 0.7, rough: 0.35 }],
+  ['Ardoise', 'solid', ['#2e3236', '#181b1e'], 'milspec', { metal: 0.6, rough: 0.4 }],
+  ['Topographie', 'topo', ['#3a4a2a', '#c8d6a0', '#7a8a4a'], 'milspec'],
+  ['Brique', 'stripes', ['#7a3b1a', '#a35a2a', '#c48a4a'], 'milspec'],
+  ['Houle', 'waves', ['#0f3b5c', '#2b7bb0', '#8fd3ff'], 'milspec'],
+  ['Bonbon', 'solid', ['#ff7ac8', '#c43d8e'], 'milspec', { metal: 0.3, rough: 0.5 }],
+  ['Menthe', 'solid', ['#2ee0b0', '#179a78'], 'milspec', { metal: 0.4, rough: 0.4 }],
+  ['Rayure', 'chevron', ['#1c1c1c', '#f2b01e', '#3a3a3a'], 'milspec'],
+  ['Carbone', 'carbon', ['#151515', '#2a2a2a', '#d42b2b'], 'milspec'],
+  ['Damier', 'checker', ['#1a1a1a', '#e8e8e8', '#d42b2b'], 'milspec'],
+  // ── Restreint ──
+  ['Cuivre Poli', 'solid', ['#c87a3a', '#8a4a1a'], 'restricted', { metal: 0.9, rough: 0.3 }],
+  ['Marée Noire', 'oil', ['#0a1420', '#2a6aa0', '#7a3cff', '#22e0ff'], 'restricted'],
+  ['Rouille', 'rust', ['#2a1810', '#8a4a20', '#c87a3a'], 'restricted'],
+  ['Tigre Royal', 'stripes', ['#e8871e', '#1a1208', '#f6c25b'], 'restricted'],
+  ['Léopard', 'leopard', ['#c9a060', '#2a1a0a', '#8a5a2a'], 'restricted'],
+  ['Circuit Vert', 'circuit', ['#06140a', '#22ff88', '#0c3a1e'], 'restricted'],
+  ['Ruche d\'Ambre', 'hex', ['#1a1408', '#f2a01e', '#3a2a10'], 'restricted'],
+  ['Sucre d\'Orge', 'candy', ['#1a0a14', '#ff3fa4', '#ffd23f', '#22e0ff'], 'restricted'],
+  ['Koï', 'koi', ['#0d4a5a', '#5ad0e0', '#ff7a1f', '#ffffff'], 'restricted'],
+  ['Marbre', 'marble', ['#d9d9d9', '#6b6b6b', '#2a2a2a'], 'restricted'],
+  // ── Classifié ──
+  ['Plasma', 'plasma', ['#120c24', '#8f4dff', '#ff3fa4', '#22e0ff'], 'classified'],
+  ['Vortex', 'vortex', ['#0a0a1a', '#3a6bff', '#ff4fd8', '#ffd23f'], 'classified'],
+  ['Synthwave', 'synth', ['#1a0638', '#ff3fa4', '#ffcf3f', '#22e0ff'], 'classified'],
+  ['Inferno', 'flames', ['#1a0a05', '#ff4b12', '#ffd23f'], 'classified'],
+  ['Givre', 'marble', ['#e8f6ff', '#6cc3ff', '#1b4a7a'], 'classified', { metal: 0.6, rough: 0.25 }],
+  ['Gorgone', 'gorgon', ['#0b3326', '#2fb37a', '#e0b23a', '#061a12'], 'classified', { metal: 0.55, rough: 0.3 }],
+  ['Dragon d\'Or', 'scales', ['#7a1010', '#e0a526', '#2a0606', '#ffe08a'], 'classified', { metal: 0.5, rough: 0.35 }],
+  // ── Secret ──
+  ['Galaxie', 'galaxy', ['#05030f', '#6a2cff', '#ff4fd8', '#ffffff'], 'covert'],
+  ['Champ d\'Étoiles', 'starfield', ['#03030a', '#2a3a8a', '#ff8ad0'], 'covert'],
+  ['Kaléidoscope', 'kaleido', ['#0a0a1a', '#ff3fa4', '#22e0ff', '#ffd23f', '#7a3cff'], 'covert'],
+  ['Feuille d\'Or', 'goldleaf', ['#0e0e10', '#e0b23a', '#fff0a0'], 'covert', { metal: 0.85, rough: 0.2 }],
+  ['Cristal', 'crystal', ['#0a1420', '#3fd0ff', '#b0f0ff', '#1a6a9a'], 'covert', { metal: 0.6, rough: 0.2 }],
+];
+
+// Finitions ★ pour le corps à corps
+const GOLD_FINISHES = [
+  ['Doppler', 'doppler', ['#0a0a12', '#d0207a', '#3a2fd6'], { metal: 0.95, rough: 0.1 }, 0.08],
+  ['Fondu', 'fade', ['#ffd23f', '#ff3fa4', '#7a3cff'], { metal: 0.95, rough: 0.12 }, 0.08],
+  ['Trempé', 'casehard', ['#2f56b8', '#c99a2e', '#5b5f66'], { metal: 0.9, rough: 0.25 }, 1],
+  ['Galaxie', 'galaxy', ['#05030f', '#3a6bff', '#ff4fd8', '#ffffff'], { metal: 0.7, rough: 0.25 }, 1],
+  ['Cristal', 'crystal', ['#0a1420', '#3fd0ff', '#b0f0ff'], { metal: 0.7, rough: 0.2 }, 1],
+  ['Feuille d\'Or', 'goldleaf', ['#8a6a10', '#ffd23f', '#fff6c0'], { metal: 1, rough: 0.12 }, 1],
+];
+// cibles corps à corps : [idArme, knifeType?]
+const GOLD_TARGETS = [
+  ['kara', 'knife', 'karambit'], ['bayo', 'knife', 'bayonet'], ['papi', 'knife', 'butterfly'],
+  ['flip', 'knife', 'flip'], ['pan', 'pan'], ['saber', 'saber'],
+];
+
+// 10 collections : chacune mappe les finitions aux armes via une permutation
+// déterministe (pas = premier coprime avec 38), donnant à chaque arme une
+// finition différente selon la collection.
+const GEN_COLLECTIONS = [
+  { id: 'spectre', name: 'Collection Spectre', price: 300, color: '#6a7cff', step: 1, golds: [0, 1, 2] },
+  { id: 'brasier', name: 'Collection Brasier', price: 300, color: '#ff6a2a', step: 3, golds: [1, 3, 4] },
+  { id: 'abysse', name: 'Collection Abysse', price: 300, color: '#2a9ad0', step: 5, golds: [2, 4, 5] },
+  { id: 'jade', name: 'Collection Jade', price: 300, color: '#2fb37a', step: 7, golds: [3, 5, 0] },
+  { id: 'nocturne', name: 'Collection Nocturne', price: 350, color: '#8a4dff', step: 9, golds: [4, 0, 1] },
+  { id: 'prisme', name: 'Collection Prisme', price: 350, color: '#ff3fd0', step: 11, golds: [5, 1, 2] },
+  { id: 'titane', name: 'Collection Titane', price: 350, color: '#9aa6b2', step: 13, golds: [0, 2, 3] },
+  { id: 'savane', name: 'Collection Savane', price: 300, color: '#c89a2a', step: 15, golds: [1, 3, 5] },
+  { id: 'cosmos', name: 'Collection Cosmos', price: 400, color: '#5a2cff', step: 17, golds: [3, 4, 5], tag: 'RARE' },
+  { id: 'arcade', name: 'Collection Arcade', price: 350, color: '#22e0c0', step: 21, golds: [0, 4, 2] },
+];
+
+const GEN_CASES = [];
+const slug = (s2) => s2.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+for (let k = 0; k < GEN_COLLECTIONS.length; k++) {
+  const col = GEN_COLLECTIONS[k];
+  const items = [];
+  const N = GUN_FINISHES.length;
+  GEN_GUNS.forEach((w, i) => {
+    const f = GUN_FINISHES[(i * col.step) % N];
+    const id = 'g' + k + '_' + w;
+    S.push({ id, weapon: w, name: f[0], rarity: f[3], pattern: f[1], colors: f[2], minF: 0, maxF: 1, fin: f[4], gen: true });
+    items.push(id);
+  });
+  for (const gi of col.golds) {
+    const gf = GOLD_FINISHES[gi];
+    const tgt = GOLD_TARGETS[(gi + k) % GOLD_TARGETS.length];
+    const id = 'g' + k + '_' + tgt[0];
+    const extra = { minF: 0, maxF: gf[4], fin: gf[3], gen: true };
+    if (tgt[1] === 'knife') extra.knife = tgt[2];
+    S.push({ id, weapon: tgt[1], name: gf[0], rarity: 'gold', pattern: gf[1], colors: gf[2], ...extra });
+    items.push(id);
+  }
+  GEN_CASES.push({ id: 'col_' + col.id, name: col.name, price: col.price, color: col.color, tag: col.tag, items });
+}
+
 export const SKINS = {};
 for (const s of S) SKINS[s.id] = s;
 
@@ -224,6 +339,7 @@ export const CASES = [
     id: 'predateur', name: 'Caisse Prédateur', price: 350, color: '#3fa34d',
     items: ['glock_ecailles', 'mp9_marbre', 'p90_jungle', 'nova_rouille', 'usp_os', 'ssg_jade', 'deagle_lave', 'ak_vipere', 'm4_predateur', 'awp_givre', 'awp_gorgone', 'ak_bete', 'bayo_fondu', 'bayo_trempe', 'bayo_tigre'],
   },
+  ...GEN_CASES,
 ];
 
 // Tirage d'un objet dans une caisse (rnd = générateur 0..1)

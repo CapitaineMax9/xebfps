@@ -178,9 +178,9 @@ export class Room {
       skins.knife = { skin: k.id, float: Math.random() * (k.maxF - k.minF) + k.minF, seed: Math.floor(Math.random() * 1000), st: false, kills: 0 };
     }
     p.skins = skins;
-    const prim = ['ak47', 'm4a1s', 'awp', 'ak47', 'm4a1s', 'mp9', 'p90', 'ssg08', 'awp', 'nova', 'famas', 'galil', 'aug', 'mac10', 'mp7', 'ump45', 'm249', 'xm1014', 'scar20', 'railgun', 'rpg', 'crossbow', 'confetti'];
+    const prim = ['ak47', 'm4a1s', 'm4a4', 'awp', 'ak47', 'm4a4', 'sg553', 'mp9', 'p90', 'bizon', 'mp5sd', 'ssg08', 'g3sg1', 'awp', 'nova', 'mag7', 'famas', 'galil', 'aug', 'mac10', 'mp7', 'ump45', 'm249', 'negev', 'xm1014', 'sawedoff', 'scar20', 'railgun', 'rpg', 'gl', 'minigun', 'crossbow', 'confetti'];
     const secs = ['usp', 'glock', 'deagle', 'fiveseven', 'tec9', 'r8', 'dualies'];
-    p.loadout = { primary: prim[Math.floor(Math.random() * prim.length)], secondary: secs[Math.floor(Math.random() * secs.length)], melee: Math.random() < 0.2 ? 'pan' : 'knife' };
+    p.loadout = { primary: prim[Math.floor(Math.random() * prim.length)], secondary: secs[Math.floor(Math.random() * secs.length)], melee: Math.random() < 0.15 ? 'saber' : Math.random() < 0.25 ? 'pan' : 'knife' };
     this.assignTeam(p);
     this.players.set(p.id, p);
     this.broadcast({ t: 'pjoin', p: p.info() });
@@ -669,10 +669,20 @@ export class Room {
         }
         if (best <= L) {
           pr.x += dx * best; pr.y += dy * best; pr.z += dz * best;
-          this.impact(pr, hitQ, hitG, hitQ ? [-dx, -dy, -dz] : n);
+          if (!hitQ && P.bounce && t - pr.born < (P.fuse || 6000) - 50) {
+            // rebond sur le décor (grenade) : on réfléchit la vitesse
+            const dot2 = (pr.vx * n[0] + pr.vy * n[1] + pr.vz * n[2]) * 2;
+            pr.vx = (pr.vx - dot2 * n[0]) * P.bounce;
+            pr.vy = (pr.vy - dot2 * n[1]) * P.bounce;
+            pr.vz = (pr.vz - dot2 * n[2]) * P.bounce;
+            pr.x += n[0] * 0.06; pr.y += n[1] * 0.06; pr.z += n[2] * 0.06;
+            this.broadcast({ t: 'pb', id: pr.id, p: [pr.x, pr.y, pr.z].map((v) => +v.toFixed(2)), v: [pr.vx, pr.vy, pr.vz].map((v) => +v.toFixed(2)) });
+          } else {
+            this.impact(pr, hitQ, hitG, hitQ ? [-dx, -dy, -dz] : n);
+          }
         } else { pr.x += dx * L; pr.y += dy * L; pr.z += dz * L; }
       }
-      if (!pr.done && (t - pr.born > 6000 || pr.y < -5)) this.impact(pr, null, -1, [0, 1, 0]);
+      if (!pr.done && (t - pr.born > (P.fuse || 6000) || pr.y < -5)) this.impact(pr, null, -1, [0, 1, 0]);
     }
     this.projectiles = this.projectiles.filter((pr) => !pr.done);
   }

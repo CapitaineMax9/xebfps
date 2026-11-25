@@ -779,6 +779,107 @@ P.dragonart = (ctx, c, rnd) => {
   ctx.fillStyle = fg; poly(ctx, [[hx + 58, hy], [hx + 220, hy - 50], [hx + 180, hy + 10], [hx + 230, hy + 50]]); ctx.fill();
 };
 
+// ── Motifs supplémentaires (v3) ─────────────────────────────────────────────
+P.plasma = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const ns = [makeNoise(rnd, 4), makeNoise(rnd, 8), makeNoise(rnd, 16)];
+  pixelPass(ctx, 192, (u, v) => {
+    const w = fbm(ns, u * 4, v * 4, 3);
+    const n = (Math.sin((u + w) * 10) + Math.sin((v - w) * 12) + Math.sin((u + v + w * 2) * 8)) / 6 + 0.5;
+    return palette(cols, Math.max(0, Math.min(0.999, n)));
+  });
+};
+P.oil = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const ns = [makeNoise(rnd, 5), makeNoise(rnd, 10)];
+  pixelPass(ctx, 192, (u, v) => {
+    const a = fbm(ns, u * 5, v * 5, 2);
+    const t = (Math.sin((a + u * 2 + v) * 7) + 1) / 2;
+    const base = palette(cols, t);
+    const sheen = Math.pow((Math.sin((u + v) * 20 + a * 10) + 1) / 2, 3) * 60;
+    return [base[0] + sheen, base[1] + sheen, base[2] + sheen];
+  });
+};
+P.rust = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  const ns = [makeNoise(rnd, 6), makeNoise(rnd, 12), makeNoise(rnd, 24)];
+  const cols = c.map(hexToRgb);
+  pixelPass(ctx, 192, (u, v) => {
+    const n = fbm(ns, u * 6, v * 6, 3);
+    if (n < 0.45) return cols[0];
+    return mix(cols[1], cols[2] || cols[1], Math.min(1, (n - 0.45) * 2.4));
+  });
+  for (let i = 0; i < 400; i++) { ctx.fillStyle = `rgba(${90 + rnd() * 60},${40 + rnd() * 40},${10 + rnd() * 30},${rnd() * 0.4})`; ctx.fillRect(rnd() * SIZE, rnd() * SIZE, 2 + rnd() * 4, 2 + rnd() * 4); }
+};
+P.candy = (ctx, c, rnd) => {
+  ctx.save(); ctx.translate(SIZE / 2, SIZE / 2); ctx.rotate(0.5); ctx.translate(-SIZE, -SIZE);
+  const cols = c.slice(1);
+  for (let i = 0, x = 0; x < SIZE * 2; i++, x += 26) { ctx.fillStyle = cols[i % cols.length]; ctx.fillRect(x, 0, 26, SIZE * 2); }
+  ctx.restore();
+  ctx.globalAlpha = 0.15; ctx.fillStyle = '#fff';
+  for (let y = 0; y < SIZE; y += 6) ctx.fillRect(0, y, SIZE, 2);
+  ctx.globalAlpha = 1;
+};
+P.chevron = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  const h = 34, cols = c.slice(1);
+  for (let row = -1, i = 0; row < SIZE / h + 1; row++, i++) {
+    ctx.fillStyle = cols[i % cols.length];
+    ctx.beginPath();
+    for (let x = 0; x <= SIZE; x += 32) { const y = row * h + (x / 32 % 2 ? 0 : h * 0.6); if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    for (let x = SIZE; x >= 0; x -= 32) { const y = row * h + (x / 32 % 2 ? 0 : h * 0.6) + h * 0.55; ctx.lineTo(x, y); }
+    ctx.closePath(); ctx.fill();
+  }
+};
+P.honey = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  const r = 26, w = Math.sqrt(3) * r;
+  for (let row = -1; row < SIZE / (r * 1.5) + 1; row++) for (let col = -1; col < SIZE / w + 1; col++) {
+    const cx = col * w + (row % 2 ? w / 2 : 0), cy = row * r * 1.5;
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; const px = cx + Math.cos(a) * (r - 2), py = cy + Math.sin(a) * (r - 2); k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, r); g.addColorStop(0, c[2] || c[1]); g.addColorStop(1, c[1]);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = c[0]; ctx.lineWidth = 3; ctx.stroke();
+  }
+};
+P.starfield = (ctx, c, rnd) => {
+  const g = ctx.createRadialGradient(SIZE * 0.6, SIZE * 0.4, 20, SIZE * 0.5, SIZE * 0.5, SIZE * 0.8);
+  g.addColorStop(0, c[1]); g.addColorStop(1, c[0]); ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 20; i++) { const x = rnd() * SIZE, y = rnd() * SIZE, rr = 40 + rnd() * 120; const gg = ctx.createRadialGradient(x, y, 0, x, y, rr); const col = hexToRgb(rnd() < 0.5 ? c[2] || c[1] : c[1]); gg.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},0.25)`); gg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gg; ctx.fillRect(0, 0, SIZE, SIZE); }
+  ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 600; i++) { ctx.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.8})`; const sz = rnd() < 0.96 ? 1.2 : 3; ctx.fillRect(rnd() * SIZE, rnd() * SIZE, sz, sz); }
+};
+P.crystal = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const pts = []; for (let i = 0; i < 26; i++) pts.push([rnd() * SIZE, rnd() * SIZE, Math.floor(rnd() * cols.length)]);
+  pixelPass(ctx, 160, (u, v) => {
+    const x = u * SIZE, y = v * SIZE; let best = 1e9, bi = 0, second = 1e9;
+    for (const p of pts) { const d = (p[0] - x) ** 2 + (p[1] - y) ** 2; if (d < best) { second = best; best = d; bi = p[2]; } else if (d < second) second = d; }
+    const edge = Math.sqrt(second) - Math.sqrt(best) < 6 ? 0.5 : 1;
+    const col = cols[bi]; return [col[0] * edge, col[1] * edge, col[2] * edge];
+  });
+};
+P.vortex = (ctx, c, rnd) => {
+  const cols = c.map(hexToRgb);
+  const off = rnd() * 6;
+  pixelPass(ctx, 192, (u, v) => {
+    const dx = u - 0.5, dy = v - 0.5; const r = Math.hypot(dx, dy); const a = Math.atan2(dy, dx);
+    const t = ((a / (Math.PI * 2) + r * 3 + off) % 1 + 1) % 1;
+    return palette(cols.concat([cols[0]]), t);
+  });
+};
+P.alpine = (ctx, c, rnd) => {
+  ctx.fillStyle = c[0]; ctx.fillRect(0, 0, SIZE, SIZE);
+  for (let layer = 1; layer < c.length; layer++) {
+    ctx.fillStyle = c[layer]; const n = 20 - layer * 3;
+    for (let i = 0; i < n; i++) { const x = rnd() * SIZE, y = rnd() * SIZE, r = 30 + rnd() * 60;
+      ctx.beginPath(); const pts = 10; for (let k = 0; k <= pts; k++) { const a = k / pts * Math.PI * 2; const rr = r * (0.6 + rnd() * 0.6); const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 1.3; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); ctx.fill(); }
+  }
+};
+
 function shade(hex, amt) {
   const [r, g, b] = hexToRgb(hex);
   const f = (v) => Math.max(0, Math.min(255, Math.round(amt < 0 ? v * (1 + amt) : v + (255 - v) * amt)));
