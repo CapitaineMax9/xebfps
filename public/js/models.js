@@ -825,11 +825,32 @@ function buildGrenadeVM(g, type) {
   return { muzzle: [0, 0, -0.1] };
 }
 
-function buildStaffVM(g, element) {
-  const b = makeBuilder(g, {});
-  const col = ELEM_COL[element] || 0xb06bff;
-  b.cyl(0.012, 0.52, 0, 0, 0.0, 'wood', 8);
-  b.cyl(0.016, 0.04, 0, 0, -0.24, 'dark', 8);
+// Couleur lumineuse de l'orbe à partir des couleurs du skin : on prend la plus
+// vive puis on remonte la luminosité pour que l'orbe brille, même palette sombre.
+function glowFromColors(colors) {
+  let best = null, bestScore = -1;
+  for (const hex of colors || []) {
+    const n = parseInt(String(hex).slice(1), 16);
+    if (!Number.isFinite(n)) continue;
+    const r = (n >> 16) & 255, gg = (n >> 8) & 255, bl = n & 255;
+    const mx = Math.max(r, gg, bl), mn = Math.min(r, gg, bl);
+    const sat = mx === 0 ? 0 : (mx - mn) / mx;
+    const score = mx * (0.4 + sat);
+    if (score > bestScore) { bestScore = score; best = [r, gg, bl]; }
+  }
+  if (!best) return 0xb06bff;
+  const mx = Math.max(best[0], best[1], best[2], 1);
+  const k = Math.min(3, 235 / mx);
+  const r = Math.min(255, best[0] * k) | 0, gg = Math.min(255, best[1] * k) | 0, bl = Math.min(255, best[2] * k) | 0;
+  return (r << 16) | (gg << 8) | bl;
+}
+
+function buildStaffVM(g, element, skin, mats) {
+  const b = makeBuilder(g, mats || {});
+  const skinned = !!(skin && mats && mats.skin);
+  const col = skin ? glowFromColors(skin.colors) : (ELEM_COL[element] || 0xb06bff);
+  b.cyl(0.012, 0.52, 0, 0, 0.0, skinned ? 'skin' : 'wood', 8);
+  b.cyl(0.016, 0.04, 0, 0, -0.24, skinned ? 'skin2' : 'dark', 8);
   const claw = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 16, Math.PI * 1.5), new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 0.7 }));
   claw.position.set(0, 0, -0.3); claw.rotation.x = Math.PI / 2; g.add(claw);
   const orb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 12), new THREE.MeshBasicMaterial({ color: col }));
@@ -838,7 +859,7 @@ function buildStaffVM(g, element) {
   glow.position.copy(orb.position); g.add(glow);
   const light = new THREE.PointLight(col, 1.2, 1.2); light.position.copy(orb.position); g.add(light);
   g.userData.orb = [orb, glow];
-  return { muzzle: [0, 0, -0.35] };
+  return { muzzle: [0, 0, -0.35], st: [0.03, 0.02, -0.05] };
 }
 
 export function buildWeapon(weaponId, item = null, opts = {}) {
@@ -854,7 +875,7 @@ export function buildWeapon(weaponId, item = null, opts = {}) {
   } else if (WEAPONS[weaponId] && WEAPONS[weaponId].kind === 'grenade') {
     info = buildGrenadeVM(g, WEAPONS[weaponId].grenade);
   } else if (WEAPONS[weaponId] && WEAPONS[weaponId].kind === 'magic') {
-    info = buildStaffVM(g, WEAPONS[weaponId].element);
+    info = buildStaffVM(g, WEAPONS[weaponId].element, skin, mats);
   } else if (BUILDERS[weaponId]) {
     info = BUILDERS[weaponId](b, g);
     if (DETAILS[weaponId] && opts.detail !== false) DETAILS[weaponId](b);

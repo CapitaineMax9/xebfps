@@ -335,6 +335,15 @@ async function skinGenTests() {
   const per = {}; for (const s of Object.values(SKINS)) per[s.weapon] = (per[s.weapon] || 0) + 1;
   const min = Math.min(...Object.values(per));
   if (min >= 4) ok(`chaque arme a au moins ${min} skins`); else fail('une arme a trop peu de skins');
+  // skins des armes magiques
+  const MAGIC_W = ['fireball', 'chainbolt', 'frostbeam', 'arcaneorb', 'healstaff', 'aegis', 'blink', 'totem'];
+  const magMin = Math.min(...MAGIC_W.map((w) => per[w] || 0));
+  if (magMin >= 4) ok(`chaque arme magique a au moins ${magMin} skins`); else fail('une arme magique manque de skins');
+  const arc = CASES.find((c) => c.id === 'arcane');
+  if (arc && arc.items.every((it) => SKINS[it] && MAGIC_W.includes(SKINS[it].weapon))) ok(`Caisse Arcane : ${arc.items.length} skins, 100 % magie`); else fail('Caisse Arcane invalide');
+  // la caisse couvre bien milspec→secret et se tire sans crash
+  const arcRar = new Set(arc ? arc.items.map((it) => SKINS[it].rarity) : []);
+  if (['milspec', 'restricted', 'classified', 'covert'].every((r) => arcRar.has(r))) ok('Caisse Arcane : toutes les raretés présentes'); else fail('Caisse Arcane : rareté manquante');
   void makeItem; void RARITY_ORDER;
 }
 

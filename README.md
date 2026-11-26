@@ -52,7 +52,8 @@ pour choisir le type ; la ceinture en bas du HUD montre ce qu'il te reste.
 
 ## Skins
 
-- **18 caisses, plus de 570 skins** : chaque arme a au moins une dizaine d'apparences (camouflages, néon, galaxie, cristal, plasma, doppler…), plus des couteaux, poêles et sabres ★.
+- **19 caisses, plus de 660 skins** : chaque arme a au moins une dizaine d'apparences (camouflages, néon, galaxie, cristal, plasma, doppler…), plus des couteaux, poêles et sabres ★.
+- **Caisse Arcane (100 % magie)** : skins pour les 8 bâtons magiques — l'**orbe lumineux** prend la couleur du skin et le manche se pare du motif (Cœur Solaire, Boréal, Singularité, Sève Sylvestre…), avec des pièces légendaires ★ (Phénix, Totem Céleste).
 - **10 collections** (Spectre, Brasier, Abysse, Jade, Nocturne, Prisme, Titane, Savane, Cosmos, Arcade) couvrant toutes les armes, en plus des caisses thématiques.
 - **Ouverture en masse** : x1 (avec la roulette), x5, x10 ou **x100** d'un coup, avec écran de résultats, meilleur objet et vente groupée des objets courants.
 - Inventaire jusqu'à **10 000 objets**, avec pagination et 3 façons de vendre vite : **tout vendre par rareté**
