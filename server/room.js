@@ -816,7 +816,9 @@ export class Room {
   onCast(p, m) {
     if (this.state !== 'playing' || !p.alive) return;
     const wid = m.w, w = WEAPONS[wid];
-    if (!w || w.kind !== 'magic' || !p.weapons.includes(wid)) return;
+    // barre de sorts : n'importe quel sort tant que la magie est l'arme principale
+    const hasMagic = p.weapons.some((id) => WEAPONS[id] && WEAPONS[id].kind === 'magic');
+    if (!w || w.kind !== 'magic' || !MAGIC.includes(wid) || !hasMagic) return;
     const o = m.o;
     if (!Array.isArray(o) || o.length !== 3 || !o.every(Number.isFinite)) return;
     if (Math.hypot(o[0] - p.body.x, o[1] - p.eye(), o[2] - p.body.z) > 1.6) return;

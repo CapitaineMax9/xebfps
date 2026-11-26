@@ -143,7 +143,7 @@ function newMe(id) {
     inspectT: -1, stepAcc: 0, wasGround: true, team: -1, gg: 0, punch: 0, punchYaw: 0,
     kills: 0, deaths: 0, respawnAt: 0, flinch: 0,
     mana: PLAYER.manaMax, manaMax: PLAYER.manaMax, nades: {}, curNade: 'he',
-    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0,
+    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0, curSpell: null,
   };
 }
 
@@ -369,10 +369,12 @@ const VM_POS = {
 function setViewWeapon(wid) {
   if (S.vm) S.vmCamera.remove(S.vm.root);
   const w = WEAPONS[wid];
-  const item = P.equippedItem(wid);
+  // magie : le modèle (élément + skin) suit le sort actif de la barre
+  const buildId = (w.kind === 'magic' && MAGIC.includes(S.me.curSpell)) ? S.me.curSpell : wid;
+  const item = P.equippedItem(buildId);
   const root = new THREE.Group();
   const pivot = new THREE.Group();
-  const model = buildWeapon(wid, item, { statTrak: true });
+  const model = buildWeapon(buildId, item, { statTrak: true });
   pivot.add(model);
   const arms = buildArms();
   pivot.add(arms);
@@ -522,12 +524,43 @@ function switchWeapon(id, force = false) {
   me.inspectT = -1;
   me.recoilIdx = 0;
   const w = WEAPONS[id];
+  // magie : on garde le sort actif (ou on démarre sur le bâton équipé)
+  if (w.kind === 'magic' && !MAGIC.includes(me.curSpell)) me.curSpell = MAGIC.includes(id) ? id : 'fireball';
   me.drawUntil = performance.now() + (w.draw || 0.5) * 1000;
   me.nextFire = Math.max(me.nextFire, me.drawUntil);
   setViewWeapon(id);
+  refreshSpellBelt();
   hud.scope(0);
   A.playClick(null, 0.7);
 }
+
+// Sélection du sort actif dans la barre (molette / direct)
+function selectSpell(idOrDir) {
+  const me = S.me;
+  if (!me.alive || !WEAPONS[me.cur] || WEAPONS[me.cur].kind !== 'magic') return;
+  let next;
+  if (idOrDir === 1 || idOrDir === -1) {
+    const i = Math.max(0, MAGIC.indexOf(me.curSpell));
+    next = MAGIC[(i + idOrDir + MAGIC.length) % MAGIC.length];
+  } else if (MAGIC.includes(idOrDir)) next = idOrDir;
+  else return;
+  if (next === me.curSpell) return;
+  me.curSpell = next;
+  me.inspectT = -1;
+  setViewWeapon(me.cur); // reconstruit le bâton selon le sort actif
+  refreshSpellBelt();
+  A.playClick(null, 1.1);
+}
+function refreshSpellBelt() {
+  const me = S.me;
+  const on = me.alive && WEAPONS[me.cur] && WEAPONS[me.cur].kind === 'magic';
+  if (!on) { hud.spells([]); return; }
+  hud.spells(MAGIC.map((id) => {
+    const w = WEAPONS[id];
+    return { id, icon: SPELL_ICON[id], name: w.name, mana: w.mana, sel: me.curSpell === id, low: me.mana < w.mana };
+  }));
+}
+const SPELL_ICON = { fireball: '🔥', chainbolt: '⚡', frostbeam: '❄', arcaneorb: '🔮', healstaff: '✚', aegis: '🛡', blink: '✦', totem: '🗿' };
 
 function startReload() {
   const me = S.me, w = WEAPONS[me.cur];
@@ -868,27 +901,28 @@ function castSpell(w) {
   me.nextFire = now + w.fireDelay * 1000;
   me.inspectT = -1; me.protectUntil = 0;
   me.mana -= w.mana; // prédiction locale, le serveur corrige
+  refreshSpellBelt();
   const o = eyePos();
   const d = dirFromAngles(me.yaw, me.pitch);
-  send({ t: 'cast', w: me.cur, o: [o.x, o.y, o.z], d, rt: viewTime() });
+  send({ t: 'cast', w: me.curSpell, o: [o.x, o.y, o.z], d, rt: viewTime() });
   A.playShot(w.sound);
-  // recul / flash au bout du bâton
-  if (S.vm) { S.vm.kick += 0.03; S.vm.kickRot += 0.06; if (S.vm.model.userData.orb) pulseOrb(S.vm.model.userData.orb); }
-  // effets locaux immédiats pour la réactivité
+  const col = ELEM_LOCAL[w.element] || 0xb06bff;
+  // recul + grosse pulsation de l'orbe + flash lumineux au bout du bâton
+  if (S.vm) { S.vm.kick += 0.05; S.vm.kickRot += 0.09; if (S.vm.model.userData.orb) pulseOrb(S.vm.model.userData.orb, 2.6); }
+  const from = muzzleWorldPos();
+  S.effects.castFlash(from, col);
   if (w.cast === 'proj' || w.cast === 'chain' || w.cast === 'beam') {
-    // les dégâts/impacts viennent du serveur ; on montre juste le départ
-    const from = muzzleWorldPos();
-    const col = ELEM_LOCAL[w.element] || 0xb06bff;
-    if (w.cast === 'beam') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); if (hit.map) S.effects.impact(hit.point, hit.normal); }
-    else if (w.cast === 'chain') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); }
-    else S.effects.burst(from, null, col, 6, 2, 0.06, 0.4, 0);
+    if (w.cast === 'beam') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); S.effects.ring(from, col, 0.9, 0.35); if (hit.map) { S.effects.impact(hit.point, hit.normal); S.effects.ring(hit.point, col, 1.2, 0.4); } }
+    else if (w.cast === 'chain') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); S.effects.burst(from, null, col, 14, 4, 0.08, 0.4, 0); }
+    else { S.effects.burst(from, new THREE.Vector3(...d), col, 16, 5, 0.1, 0.5, 0); S.effects.ring(from, col, 0.8, 0.3); }
   }
-  if (w.cast === 'heal') { healAura(me.body.x, me.body.y, me.body.z, 0x4fe08a); }
-  if (w.cast === 'shield') { healAura(me.body.x, me.body.y, me.body.z, 0xffd23f); }
-  if (w.cast === 'turret') { S.effects.burst(eyePos().add(new THREE.Vector3(...d).multiplyScalar(2.2)), null, 0x6affc0, 10, 2, 0.08, 0.6, 1); }
+  if (w.cast === 'heal') { healAura(me.body.x, me.body.y, me.body.z, 0x4fe08a); S.effects.ring(new THREE.Vector3(me.body.x, me.body.y + 0.1, me.body.z), 0x4fe08a, w.radius * 0.9, 0.7, true); }
+  if (w.cast === 'shield') { healAura(me.body.x, me.body.y, me.body.z, 0xffd23f); S.effects.ring(new THREE.Vector3(me.body.x, me.body.y + 0.1, me.body.z), 0xffd23f, 1.6, 0.6, true); }
+  if (w.cast === 'blink') { S.effects.burst(o.clone(), null, col, 22, 6, 0.1, 0.6, 0); S.effects.ring(new THREE.Vector3(me.body.x, me.body.y + 0.1, me.body.z), col, 1.4, 0.5, true); }
+  if (w.cast === 'turret') { const p = eyePos().add(new THREE.Vector3(...d).multiplyScalar(2.2)); S.effects.burst(p, null, 0x6affc0, 18, 3, 0.1, 0.7, 1); S.effects.ring(p, 0x6affc0, 1.2, 0.5); }
 }
 const ELEM_LOCAL = { fire: 0xff6a1a, bolt: 0x5ad0ff, ice: 0x9fe8ff, arcane: 0xb06bff, heal: 0x4fe08a, shield: 0xffd23f, tele: 0xc06bff, summon: 0x6affc0 };
-function pulseOrb(orbArr) { for (const o of orbArr) { o.scale.setScalar(1.8); } setTimeout(() => { for (const o of orbArr) o.scale.setScalar(1); }, 90); }
+function pulseOrb(orbArr, s = 1.8) { for (const o of orbArr) { o.scale.setScalar(s); } setTimeout(() => { for (const o of orbArr) o.scale.setScalar(1); }, 110); }
 function healAura(x, y, z, col) { const p = new THREE.Vector3(x, y + 0.5, z); for (let i = 0; i < 16; i++) S.effects.burst(p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, Math.random() * 1.6, (Math.random() - 0.5) * 0.8)), new THREE.Vector3(0, 1, 0), col, 1, 0.6, 0.06, 0.8, -1.5); }
 
 // ── Grenades à lancer ────────────────────────────────────────────────────────
@@ -954,10 +988,11 @@ function updateWeapon(dt) {
     return;
   }
   if (w.kind === 'magic') {
-    if (S.mouse.left && (w.auto || !me.firedPress) && now >= me.nextFire) {
+    const sw = WEAPONS[me.curSpell] || w; // sort actif de la barre
+    if (S.mouse.left && !me.firedPress && now >= me.nextFire) {
       me.firedPress = true;
-      if (me.mana < w.mana) { A.playClick(null, 0.8); me.nextFire = now + 300; return; }
-      castSpell(w);
+      if (me.mana < sw.mana) { A.playClick(null, 0.8); me.nextFire = now + 250; refreshSpellBelt(); return; }
+      castSpell(sw);
     }
     return;
   }
@@ -1128,10 +1163,14 @@ function updateHud(dt) {
   S.hudAcc = 0;
   hud.setHp(me.alive ? me.hp : 0);
   const a = me.ammo[me.cur] || { mag: 0, res: 0 };
-  hud.setAmmo(me.cur, a.mag, a.res, me.weapons, me.cur);
-  hud.setMana(me.mana, me.manaMax, me.alive && WEAPONS[me.cur].kind === 'magic');
+  const isMagic = me.alive && WEAPONS[me.cur] && WEAPONS[me.cur].kind === 'magic';
+  // en magie, le nom affiché est celui du sort actif
+  const dispId = isMagic && MAGIC.includes(me.curSpell) ? me.curSpell : me.cur;
+  hud.setAmmo(dispId, a.mag, a.res, me.weapons, me.cur);
+  hud.setMana(me.mana, me.manaMax, isMagic);
   hud.setShield(me.alive ? me.shield : 0);
   if (me.alive && me.nades && Object.keys(me.nades).length) refreshNadeBelt(); else hud.nades([]);
+  if (isMagic) refreshSpellBelt(); else hud.spells([]);
   hud.setTime((S.matchEnd - serverNow()) / 1000);
   // score en haut
   const myRow = S.board.find((r) => r[0] === me.id);
@@ -1299,6 +1338,8 @@ function setupInput() {
   document.addEventListener('contextmenu', (e) => { if (S.active) e.preventDefault(); });
   document.addEventListener('wheel', (e) => {
     if (!S.active || !S.locked || S.ui || !S.me.alive) return;
+    // bâton sorti : la molette change de sort (barre), sinon d'arme
+    if (WEAPONS[S.me.cur] && WEAPONS[S.me.cur].kind === 'magic') { selectSpell(e.deltaY > 0 ? 1 : -1); return; }
     const list = S.me.weapons.slice().sort((a, b) => WEAPONS[a].slot - WEAPONS[b].slot);
     const i = list.indexOf(S.me.cur);
     const n = list[(i + (e.deltaY > 0 ? 1 : -1) + list.length) % list.length];
@@ -1399,7 +1440,7 @@ function buildLoadoutUI() {
   if (!mag) {
     const row = document.createElement('div');
     row.className = 'lo-row';
-    row.innerHTML = '<h3>Magie ✦ <small style="opacity:.6;font-size:12px">(remplace l\'arme principale)</small></h3><div id="lo-mag" class="lo-list"></div>';
+    row.innerHTML = '<h3>Magie ✦ <small style="opacity:.6;font-size:12px">(remplace l\'arme principale — en jeu tu as les 8 sorts, molette pour changer)</small></h3><div id="lo-mag" class="lo-list"></div>';
     document.getElementById('lo-prim').parentElement.after(row);
     mag = document.getElementById('lo-mag');
   }
@@ -1701,7 +1742,8 @@ if (new URLSearchParams(location.search).has('test')) {
     look(yaw, pitch) { S.me.yaw = yaw; S.me.pitch = pitch; },
     throwNade(type) { S.me.curNade = type; throwGrenade(false); },
     selectNade(type) { selectNade(type); },
-    castNow() { const w = WEAPONS[S.me.cur]; if (w.kind === 'magic') { S.me.firedPress = false; S.me.nextFire = 0; castSpell(w); } },
+    castNow() { const w = WEAPONS[S.me.cur]; if (w.kind === 'magic') { S.me.firedPress = false; S.me.nextFire = 0; castSpell(WEAPONS[S.me.curSpell] || w); } },
+    selectSpell(id) { selectSpell(id); return S.me.curSpell; },
     me() { return S.me; },
     emit(m) { dispatch(m); },
     aimAtNearest() {

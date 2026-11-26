@@ -33,12 +33,16 @@ Choix de l'arme principale, du pistolet et de l'arme de corps à corps avec **B*
 ## Magie ✦
 
 Une **catégorie d'arme principale à part** (menu **B**, onglet « Magie ✦ »). Les sorts ne consomment pas de
-munitions mais du **mana**, affiché en bleu dans le HUD et qui **se régénère tout seul** : il faut doser.
+munitions mais du **mana**, affiché en bleu dans le HUD et qui **se régénère tout seul**.
 
-- **Feu & foudre** : *Boule de feu* (projectile explosif) et *Éclair en chaîne* (rebondit sur les ennemis proches).
-- **Glace & arcane** : *Rayon de givre* (dégâts + **ralentit** la cible) et *Orbe arcanique* (traverse et perce).
-- **Soin & support** : *Bâton de soin* (rend des PV autour de toi) et *Égide arcanique* (**bouclier** qui absorbe les dégâts).
-- **Invocation & téléport** : *Bâton de saut* (téléportation courte) et *Totem gardien* (tourelle qui tire toute seule).
+Quand tu équipes la magie, tu as **les 8 sorts en même temps** dans une **barre en bas à gauche** : **clic gauche**
+pour lancer le sort actif, **molette** pour changer de sort. Les sorts sont **surpuissants** (gros dégâts, grosses
+zones, cast rapide) et très animés.
+
+- **Feu & foudre** : *Boule de feu* (projectile explosif, grosse zone) et *Éclair en chaîne* (rebondit sur jusqu'à 6 ennemis).
+- **Glace & arcane** : *Rayon de givre* (dégâts + **ralentit** fort la cible) et *Orbe arcanique* (traverse et perce, très rapide).
+- **Soin & support** : *Bâton de soin* (rend beaucoup de PV autour de toi) et *Égide arcanique* (**gros bouclier** qui absorbe les dégâts).
+- **Invocation & téléport** : *Bâton de saut* (téléportation) et *Totem gardien* (tourelle costaud qui tire toute seule).
 
 ## Grenades
 
@@ -52,7 +56,8 @@ pour choisir le type ; la ceinture en bas du HUD montre ce qu'il te reste.
 
 ## Skins
 
-- **18 caisses, plus de 570 skins** : chaque arme a au moins une dizaine d'apparences (camouflages, néon, galaxie, cristal, plasma, doppler…), plus des couteaux, poêles et sabres ★.
+- **19 caisses, plus de 660 skins** : chaque arme a au moins une dizaine d'apparences (camouflages, néon, galaxie, cristal, plasma, doppler…), plus des couteaux, poêles et sabres ★.
+- **Caisse Arcane (100 % magie)** : skins pour les 8 bâtons magiques — l'**orbe lumineux** prend la couleur du skin et le manche se pare du motif (Cœur Solaire, Boréal, Singularité, Sève Sylvestre…), avec des pièces légendaires ★ (Phénix, Totem Céleste).
 - **10 collections** (Spectre, Brasier, Abysse, Jade, Nocturne, Prisme, Titane, Savane, Cosmos, Arcade) couvrant toutes les armes, en plus des caisses thématiques.
 - **Ouverture en masse** : x1 (avec la roulette), x5, x10 ou **x100** d'un coup, avec écran de résultats, meilleur objet et vente groupée des objets courants.
 - Inventaire jusqu'à **10 000 objets**, avec pagination et 3 façons de vendre vite : **tout vendre par rareté**
@@ -99,6 +104,7 @@ personnages articulés (course, accroupi, saut, chute) et armes détaillées. Si
 | Clic gauche / clic droit | Tirer / lunette (AWP, SSG) ou coup lourd au couteau |
 | R / 1 2 3 / molette / A (AZERTY) | Recharger / changer d'arme / dernière arme |
 | G / 4 5 6 7 | Lancer une grenade / choisir le type (HE, Flash, Fumigène, Molotov) |
+| Clic gauche / molette (magie) | Lancer le sort actif / changer de sort (barre en bas à gauche) |
 | F / B / Tab / Entrée | Inspecter / choix des armes (dont Magie ✦) / scores / chat |
 
 ## Lancer en local

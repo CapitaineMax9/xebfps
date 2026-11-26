@@ -57,6 +57,15 @@ export const hud = {
     el.innerHTML = belt.map((n) => `<div class="nade-slot ${n.count > 0 ? 'has' : ''} ${n.sel ? 'sel' : ''}"><div class="ni">${n.icon}</div><div class="nc">${n.count}</div><div class="nk">${n.key}</div></div>`).join('');
   },
 
+  // belt = [{id, icon, name, mana, sel, low}]
+  spells(belt) {
+    const el = $('spell-belt');
+    if (!el) return;
+    if (!belt || !belt.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.classList.remove('hidden');
+    el.innerHTML = belt.map((s, i) => `<div class="spell-slot ${s.sel ? 'sel' : ''} ${s.low ? 'low' : ''}"><div class="si">${s.icon}</div><div class="sn">${esc(s.name)}</div><div class="sm">${s.mana}</div></div>`).join('');
+  },
+
   flash(dur, intensity) {
     const el = $('flash-overlay');
     el.style.transition = 'none';

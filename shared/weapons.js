@@ -308,36 +308,36 @@ export const WEAPONS = {
 
   // ── Magie (catégorie d'arme principale, coûte du mana) ─────────────────
   fireball: {
-    id: 'fireball', name: 'Boule de feu', kind: 'magic', element: 'fire', staff: 'fire', slot: 1, draw: 0.6, fireDelay: 0.7, mana: 34, speed: 5.9,
-    cast: 'proj', projectile: { speed: 30, gravity: 2.5, splash: 3.6, self: 0.3, model: 'fireball' }, damage: 85, sound: 'cast_fire',
+    id: 'fireball', name: 'Boule de feu', kind: 'magic', element: 'fire', staff: 'fire', slot: 1, draw: 0.6, fireDelay: 0.42, mana: 20, speed: 6.1,
+    cast: 'proj', projectile: { speed: 44, gravity: 1.4, splash: 6.0, self: 0.12, model: 'fireball' }, damage: 150, sound: 'cast_fire',
   },
   chainbolt: {
-    id: 'chainbolt', name: 'Éclair en chaîne', kind: 'magic', element: 'bolt', staff: 'bolt', slot: 1, draw: 0.6, fireDelay: 0.55, mana: 30, speed: 6.0,
-    cast: 'chain', damage: 52, range: 60, chain: { jumps: 3, radius: 7, falloff: 0.72 }, sound: 'cast_bolt',
+    id: 'chainbolt', name: 'Éclair en chaîne', kind: 'magic', element: 'bolt', staff: 'bolt', slot: 1, draw: 0.6, fireDelay: 0.38, mana: 16, speed: 6.2,
+    cast: 'chain', damage: 90, range: 85, chain: { jumps: 6, radius: 12, falloff: 0.86 }, sound: 'cast_bolt',
   },
   frostbeam: {
-    id: 'frostbeam', name: 'Rayon de givre', kind: 'magic', element: 'ice', staff: 'ice', slot: 1, draw: 0.6, fireDelay: 0.3, mana: 13, speed: 6.0,
-    cast: 'beam', damage: 20, range: 45, slow: { mul: 0.45, dur: 1500 }, sound: 'cast_ice',
+    id: 'frostbeam', name: 'Rayon de givre', kind: 'magic', element: 'ice', staff: 'ice', slot: 1, draw: 0.6, fireDelay: 0.2, mana: 7, speed: 6.2,
+    cast: 'beam', damage: 36, range: 65, slow: { mul: 0.28, dur: 2400 }, sound: 'cast_ice',
   },
   arcaneorb: {
-    id: 'arcaneorb', name: 'Orbe arcanique', kind: 'magic', element: 'arcane', staff: 'arcane', slot: 1, draw: 0.6, fireDelay: 0.5, mana: 22, speed: 6.0,
-    cast: 'proj', projectile: { speed: 42, gravity: 0, splash: 1.6, self: 0, model: 'orb' }, damage: 55, sound: 'cast_arcane',
+    id: 'arcaneorb', name: 'Orbe arcanique', kind: 'magic', element: 'arcane', staff: 'arcane', slot: 1, draw: 0.6, fireDelay: 0.34, mana: 12, speed: 6.2,
+    cast: 'proj', projectile: { speed: 58, gravity: 0, splash: 2.8, self: 0, model: 'orb' }, damage: 95, sound: 'cast_arcane',
   },
   healstaff: {
-    id: 'healstaff', name: 'Bâton de soin', kind: 'magic', element: 'heal', staff: 'heal', slot: 1, draw: 0.6, fireDelay: 0.5, mana: 24, speed: 6.1,
-    cast: 'heal', heal: 24, radius: 6, sound: 'cast_heal',
+    id: 'healstaff', name: 'Bâton de soin', kind: 'magic', element: 'heal', staff: 'heal', slot: 1, draw: 0.6, fireDelay: 0.38, mana: 14, speed: 6.3,
+    cast: 'heal', heal: 48, radius: 9, sound: 'cast_heal',
   },
   aegis: {
-    id: 'aegis', name: 'Égide arcanique', kind: 'magic', element: 'shield', staff: 'shield', slot: 1, draw: 0.6, fireDelay: 1.0, mana: 45, speed: 6.1,
-    cast: 'shield', shield: 80, dur: 7000, sound: 'cast_heal',
+    id: 'aegis', name: 'Égide arcanique', kind: 'magic', element: 'shield', staff: 'shield', slot: 1, draw: 0.6, fireDelay: 0.7, mana: 28, speed: 6.3,
+    cast: 'shield', shield: 180, dur: 11000, sound: 'cast_heal',
   },
   blink: {
-    id: 'blink', name: 'Bâton de saut', kind: 'magic', element: 'tele', staff: 'tele', slot: 1, draw: 0.5, fireDelay: 0.9, mana: 30, speed: 6.2,
-    cast: 'blink', dist: 7, sound: 'cast_arcane',
+    id: 'blink', name: 'Bâton de saut', kind: 'magic', element: 'tele', staff: 'tele', slot: 1, draw: 0.5, fireDelay: 0.45, mana: 14, speed: 6.4,
+    cast: 'blink', dist: 12, sound: 'cast_arcane',
   },
   totem: {
-    id: 'totem', name: 'Totem gardien', kind: 'magic', element: 'summon', staff: 'summon', slot: 1, draw: 0.8, fireDelay: 1.4, mana: 60, speed: 6.0,
-    cast: 'turret', turret: { hp: 60, dmg: 14, rof: 0.35, range: 42, life: 14000 }, sound: 'cast_summon',
+    id: 'totem', name: 'Totem gardien', kind: 'magic', element: 'summon', staff: 'summon', slot: 1, draw: 0.8, fireDelay: 0.9, mana: 38, speed: 6.0,
+    cast: 'turret', turret: { hp: 140, dmg: 28, rof: 0.18, range: 58, life: 22000 }, sound: 'cast_summon',
   },
 };
 

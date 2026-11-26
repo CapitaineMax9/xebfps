@@ -188,6 +188,19 @@ add('pan_or', 'pan', 'Or Massif', 'gold', 'goldleaf', ['#8a6a10', '#ffd23f', '#f
 add('pan_doppler', 'pan', 'Doppler', 'gold', 'doppler', ['#0a0a12', '#d0207a', '#3a2fd6'], { fin: { metal: 0.95, rough: 0.1 }, maxF: 0.08 });
 add('pan_fondu', 'pan', 'Fondu', 'gold', 'fade', ['#ffd23f', '#ff3fa4', '#7a3cff'], { fin: { metal: 0.95, rough: 0.12 }, maxF: 0.08 });
 
+// ── Skins magiques d'exception (Caisse Arcane) ───────────────────────────────
+add('fireball_solaire', 'fireball', 'Cœur Solaire', 'covert', 'flames', ['#1a0a05', '#ff4b12', '#ffd23f']);
+add('chainbolt_tempete', 'chainbolt', 'Tempête', 'covert', 'lightning', ['#0a0e24', '#5ad0ff', '#e6f6ff']);
+add('frostbeam_boreal', 'frostbeam', 'Boréal', 'covert', 'crystal', ['#0a1420', '#3fd0ff', '#b0f0ff', '#1a6a9a'], { fin: { metal: 0.6, rough: 0.2 } });
+add('arcaneorb_singularite', 'arcaneorb', 'Singularité', 'covert', 'galaxy', ['#05030f', '#8a4dff', '#ff4fd8', '#ffffff']);
+add('healstaff_sylvestre', 'healstaff', 'Sève Sylvestre', 'covert', 'gorgon', ['#06220f', '#4fe08a', '#d6ffe6', '#02140a'], { fin: { metal: 0.3, rough: 0.5 } });
+add('aegis_rempart', 'aegis', 'Rempart Doré', 'covert', 'goldleaf', ['#0e0e10', '#e0b23a', '#fff0a0'], { fin: { metal: 0.85, rough: 0.2 } });
+add('blink_faille', 'blink', 'Faille', 'covert', 'plasma', ['#120c24', '#b06bff', '#ff3fa4', '#22e0ff']);
+add('totem_idole', 'totem', 'Idole Antique', 'covert', 'scales', ['#2a0606', '#e0a526', '#7a1010', '#ffe08a'], { fin: { metal: 0.5, rough: 0.35 } });
+// ★ légendaires magiques
+add('fireball_phenix', 'fireball', 'Phénix', 'gold', 'flames', ['#1a0400', '#ff6a1a', '#ffd23f', '#fff2b0'], { fin: { metal: 0.6, rough: 0.3 }, maxF: 0.3 });
+add('totem_celeste', 'totem', 'Totem Céleste', 'gold', 'goldleaf', ['#2a2008', '#ffd23f', '#fff6c0'], { fin: { metal: 1, rough: 0.12 }, maxF: 0.2 });
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Générateur de skins : finitions appliquées à toutes les armes.
 // Les identifiants (g<col>_<arme>) sont FIGÉS : ne jamais changer l'ordre de
@@ -200,6 +213,9 @@ const GEN_GUNS = [
   'nova', 'xm1014', 'mag7', 'sawedoff', 'm249', 'negev', 'minigun',
   'usp', 'glock', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus',
   'railgun', 'rpg', 'gl', 'crossbow', 'confetti',
+  // Armes magiques — AJOUTÉES EN FIN DE LISTE pour ne pas décaler les index
+  // des armes à feu (les identifiants g<col>_<arme> restent figés).
+  'fireball', 'chainbolt', 'frostbeam', 'arcaneorb', 'healstaff', 'aegis', 'blink', 'totem',
 ];
 
 // Chaque finition : [nom, motif, couleurs, rareté, fin?]
@@ -306,7 +322,28 @@ for (let k = 0; k < GEN_COLLECTIONS.length; k++) {
 export const SKINS = {};
 for (const s of S) SKINS[s.id] = s;
 
+// Caisse Arcane : 100 % magie — les 8 skins d'exception (★ Secret) + des
+// finitions générées couvrant chaque rareté (jusqu'à 6 milspec / 6 restreint /
+// 4 classifié), pour que la caisse soit équilibrée.
+const MAGIC_IDS = ['fireball', 'chainbolt', 'frostbeam', 'arcaneorb', 'healstaff', 'aegis', 'blink', 'totem'];
+const ARCANE_ITEMS = ['fireball_solaire', 'chainbolt_tempete', 'frostbeam_boreal', 'arcaneorb_singularite', 'healstaff_sylvestre', 'aegis_rempart', 'blink_faille', 'totem_idole', 'fireball_phenix', 'totem_celeste'];
+{
+  const buckets = { milspec: [], restricted: [], classified: [] };
+  for (let k = 0; k < GEN_COLLECTIONS.length; k++) {
+    for (const w of MAGIC_IDS) {
+      const id = 'g' + k + '_' + w, sk = SKINS[id];
+      if (sk && buckets[sk.rarity]) buckets[sk.rarity].push(id);
+    }
+  }
+  const take = (arr, n) => arr.slice(0, n);
+  ARCANE_ITEMS.push(...take(buckets.milspec, 6), ...take(buckets.restricted, 6), ...take(buckets.classified, 4));
+}
+
 export const CASES = [
+  {
+    id: 'arcane', name: 'Caisse Arcane', price: 400, color: '#8a4dff', tag: 'MAGIE ✦',
+    items: ARCANE_ITEMS,
+  },
   {
     id: 'loufoque', name: 'Caisse Loufoque', price: 350, color: '#ff3fa4', tag: 'POÊLES ★',
     items: ['confetti_pastel', 'zeus_damier', 'crossbow_camo', 'rpg_digital', 'pan_cuivre', 'railgun_circuit', 'confetti_tiedye', 'crossbow_bois', 'rpg_flammes', 'railgun_synth', 'rpg_graffiti', 'pan_pixel', 'zeus_eclair', 'railgun_kaleido', 'rpg_wyrm', 'confetti_galaxie', 'pan_or', 'pan_doppler', 'pan_fondu'],
@@ -351,7 +388,15 @@ export function rollCase(caseDef, rnd = Math.random) {
     x -= RARITIES[r].weight;
     if (x <= 0) { rarity = r; break; }
   }
-  const pool = caseDef.items.filter((id) => SKINS[id].rarity === rarity);
+  // repli : si la caisse n'a aucun objet de la rareté tirée, on descend vers la
+  // rareté inférieure disponible (puis, à défaut, n'importe quel objet).
+  let pool = caseDef.items.filter((id) => SKINS[id].rarity === rarity);
+  if (!pool.length) {
+    for (let i = RARITY_ORDER.indexOf(rarity) - 1; i >= 0 && !pool.length; i--) {
+      pool = caseDef.items.filter((id) => SKINS[id].rarity === RARITY_ORDER[i]);
+    }
+  }
+  if (!pool.length) pool = caseDef.items.slice();
   const skin = SKINS[pool[Math.floor(rnd() * pool.length)]];
   return makeItem(skin.id, rnd);
 }

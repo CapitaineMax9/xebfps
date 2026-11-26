@@ -159,9 +159,37 @@ export class Effects {
     s.material.rotation = Math.random() * 6.28;
     this.group.add(s);
     this.particles.push({ s, v: new THREE.Vector3(), t: 0, life: 0.05, g: 0, sz, flash: true });
+    this.light.color.setHex(0xffc070);
     this.light.position.copy(worldPos);
     this.light.intensity = 6 * scale;
     this.lightT = 0.05;
+  }
+
+  // Éclat lumineux coloré au lancer d'un sort
+  castFlash(worldPos, color = 0x9bd1ff) {
+    const s = new THREE.Sprite(this.flashMat);
+    s.position.copy(worldPos);
+    const sz = 0.34;
+    s.scale.set(sz, sz, sz);
+    s.material.rotation = Math.random() * 6.28;
+    this.group.add(s);
+    this.particles.push({ s, v: new THREE.Vector3(), t: 0, life: 0.09, g: 0, sz, flash: true });
+    this.light.color.setHex(color);
+    this.light.position.copy(worldPos);
+    this.light.intensity = 12;
+    this.light.distance = 11;
+    this.lightT = 0.14;
+  }
+
+  // Anneau de choc qui s'étend puis s'estompe (AoE, soin, bouclier, impacts)
+  ring(pos, color = 0x9bd1ff, maxR = 1, life = 0.4) {
+    const geo = new THREE.RingGeometry(0.4, 0.5, 28);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(pos); m.rotation.x = -Math.PI / 2;
+    this.group.add(m);
+    this.rings = this.rings || [];
+    this.rings.push({ m, t: 0, life, maxR });
   }
 
   update(dt) {
@@ -185,6 +213,17 @@ export class Effects {
       if (!p.flash) p.s.material.opacity = 1 - p.t / p.life;
     }
     if (this.lightT > 0) { this.lightT -= dt; if (this.lightT <= 0) { this.light.intensity = 0; this.light.distance = 8; } }
+    if (this.rings) {
+      for (let i = this.rings.length - 1; i >= 0; i--) {
+        const r = this.rings[i];
+        r.t += dt;
+        const k = r.t / r.life;
+        const s = 0.15 + k * r.maxR;
+        r.m.scale.set(s, s, s);
+        r.m.material.opacity = Math.max(0, 0.85 * (1 - k));
+        if (r.t >= r.life) { this.group.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); this.rings.splice(i, 1); }
+      }
+    }
     if (this.beams) {
       for (let i = this.beams.length - 1; i >= 0; i--) {
         const b = this.beams[i];
@@ -201,6 +240,7 @@ export class Effects {
     for (const t of this.tracers) this.group.remove(t.m);
     for (const p of this.particles) this.group.remove(p.s);
     for (const d of this.decals) this.group.remove(d);
+    if (this.rings) { for (const r of this.rings) { this.group.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); } this.rings = []; }
     this.tracers = []; this.particles = []; this.decals = [];
   }
 }
