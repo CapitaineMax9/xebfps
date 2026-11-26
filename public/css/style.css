@@ -342,12 +342,24 @@ input:disabled { opacity: .6; }
 @keyframes kcblink { 50% { opacity: .25; } }
 #killcam-ui::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 140px rgba(0,0,0,.55); }
 #mlg-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
-#mlg-ui { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
-#mlg-glasses { font-size: 110px; transform: translateY(-260px); transition: transform .5s cubic-bezier(.3,1.5,.5,1); filter: drop-shadow(0 4px 10px rgba(0,0,0,.6)); }
-#mlg-ui.show #mlg-glasses { transform: translateY(-20px); }
-#mlg-text { font-family: var(--font2); font-weight: 700; font-size: 72px; letter-spacing: .04em; color: #fff; text-shadow: 3px 3px 0 #ff00c8, -3px -3px 0 #00e5ff, 0 0 20px rgba(255,255,255,.5); opacity: 0; transform: scale(.4) rotate(-6deg); }
-#mlg-ui.show #mlg-text { animation: mlgpop .5s forwards; }
-@keyframes mlgpop { to { opacity: 1; transform: scale(1) rotate(-6deg); } }
+#mlg-ui { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#mlg-rainbow { position: absolute; inset: -20%; opacity: 0; mix-blend-mode: color; background: conic-gradient(from 0deg, #ff0040, #ff8a00, #ffe600, #37ff00, #00e5ff, #4800ff, #ff00d4, #ff0040); animation: mlgspin 1.1s linear infinite; }
+#mlg-ui.show #mlg-rainbow { opacity: .55; }
+@keyframes mlgspin { to { transform: rotate(360deg); } }
+#mlg-illuminati { position: absolute; top: 12%; left: 50%; font-size: 120px; line-height: 1; transform: translate(-50%,-40px) scale(.2); opacity: 0; filter: drop-shadow(0 0 18px rgba(255,255,255,.8)); }
+#mlg-illuminati span { position: absolute; left: 50%; top: 58%; transform: translate(-50%,-50%); font-size: 46px; }
+#mlg-ui.show #mlg-illuminati { animation: mlgilm 3.6s ease-out forwards; }
+@keyframes mlgilm { 0% { opacity: 0; transform: translate(-50%,-40px) scale(.2) rotate(0); } 18% { opacity: 1; transform: translate(-50%,0) scale(1) rotate(360deg); } 100% { opacity: .9; transform: translate(-50%,0) scale(1.05) rotate(1440deg); } }
+#mlg-glasses { position: absolute; top: 34%; left: 50%; font-size: 120px; transform: translate(-50%,-320px); transition: transform .55s cubic-bezier(.3,1.6,.5,1); filter: drop-shadow(0 6px 12px rgba(0,0,0,.7)); }
+#mlg-ui.show #mlg-glasses { transform: translate(-50%,0); }
+#mlg-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.4) rotate(-6deg); font-family: var(--font2); font-weight: 800; font-size: 86px; letter-spacing: .04em; color: #fff; text-shadow: 4px 4px 0 #ff00c8, -4px -4px 0 #00e5ff, 0 0 26px rgba(255,255,255,.6); opacity: 0; white-space: nowrap; }
+#mlg-ui.pop #mlg-text { animation: mlgpop .4s cubic-bezier(.2,1.7,.4,1) forwards; }
+@keyframes mlgpop { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.3) rotate(-6deg); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1) rotate(-6deg); } }
+#mlg-sub { position: absolute; top: 64%; left: 50%; transform: translateX(-50%); font-family: var(--font2); font-weight: 700; font-size: 30px; color: #ffe600; text-shadow: 2px 2px 0 #000; opacity: 0; white-space: nowrap; }
+#mlg-ui.show #mlg-sub { opacity: 1; }
+#mlg-items { position: absolute; inset: 0; }
+.mlg-fly { position: absolute; font-size: 56px; will-change: transform; filter: drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
+@keyframes mlgfly { from { transform: translate(var(--x0), var(--y0)) rotate(0); opacity: 1; } to { transform: translate(var(--x1), var(--y1)) rotate(var(--rot)); opacity: 1; } }
 
 /* Barre de sorts (magie) en bas à gauche */
 #spell-belt { position: absolute; left: 20px; bottom: 124px; display: flex; gap: 5px; }
