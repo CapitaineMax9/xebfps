@@ -73,15 +73,45 @@ export const hud = {
     if (show) $('kc-text').innerHTML = text;
   },
 
-  // Overlay MLG : lunettes qui tombent + gros texte
-  mlg(show, text = 'REKT') {
+  // ── Montage MLG ──
+  mlgStart() {
     const el = $('mlg-ui');
     if (!el) return;
-    if (!show) { el.classList.add('hidden'); el.classList.remove('show'); return; }
-    $('mlg-text').textContent = text;
+    $('mlg-items').innerHTML = '';
+    $('mlg-text').textContent = ''; $('mlg-sub').textContent = '';
     el.classList.remove('hidden');
-    // relance l'animation
     el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  },
+  mlgText(main, sub = '') {
+    const el = $('mlg-ui');
+    if (!el || el.classList.contains('hidden')) return;
+    $('mlg-text').textContent = main;
+    $('mlg-sub').textContent = sub;
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  },
+  mlgFling(ch = '🔺') {
+    const box = $('mlg-items');
+    if (!box) return;
+    const d = document.createElement('div');
+    d.className = 'mlg-fly';
+    d.textContent = ch;
+    const fromLeft = Math.random() < 0.5;
+    const y0 = 20 + Math.random() * 80, y1 = -10 + Math.random() * 120;
+    d.style.setProperty('--x0', (fromLeft ? -10 : 110) + 'vw');
+    d.style.setProperty('--x1', (fromLeft ? 110 : -10) + 'vw');
+    d.style.setProperty('--y0', y0 + 'vh');
+    d.style.setProperty('--y1', y1 + 'vh');
+    d.style.setProperty('--rot', (Math.random() * 1440 - 720) + 'deg');
+    d.style.left = '0'; d.style.top = '0';
+    d.style.animation = `mlgfly ${0.9 + Math.random() * 0.5}s linear forwards`;
+    box.appendChild(d);
+    setTimeout(() => d.remove(), 1600);
+  },
+  mlgStop() {
+    const el = $('mlg-ui');
+    if (!el) return;
+    el.classList.add('hidden'); el.classList.remove('show', 'pop');
+    $('mlg-items').innerHTML = '';
   },
 
   mlgFlash(color = '#ff00e6') {

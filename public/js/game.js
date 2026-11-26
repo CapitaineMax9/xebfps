@@ -162,7 +162,7 @@ export function enterGame(msg) {
   S.matchEnd = msg.endsAt;
   S.players.clear();
   S.ui = null;
-  S.recBuf = []; S.killcam = null; S.pendingDeath = null; S._recLast = 0;
+  S.recBuf = []; S.killcam = null; S.pendingDeath = null; S.pendingSpawn = null; S._recLast = 0; S._kcManual = false;
   if (S.meAvatar) { S.scene.remove(S.meAvatar); S.meAvatar = null; }
   for (const p of msg.players) if (p.id !== S.me.id) addRemote(p); else S.me.team = p.team;
   loadMap(msg.map);
@@ -181,8 +181,8 @@ export function enterGame(msg) {
 
 export function exitGame() {
   S.active = false;
-  S.killcam = null; S.recBuf = []; S.pendingDeath = null;
-  hud.killcam(false); hud.mlg(false);
+  S.killcam = null; S.recBuf = []; S.pendingDeath = null; S.pendingSpawn = null;
+  hud.killcam(false); hud.mlgStop();
   if (S.meAvatar) { S.scene.remove(S.meAvatar); S.meAvatar = null; }
   clearProjectiles();
   clearWorldFx();
@@ -1161,7 +1161,8 @@ function sampleFrames(frames, rt) {
 function updateKillcam(dt) {
   const kc = S.killcam;
   const el = (performance.now() - kc.start) / 1000;
-  const prog = Math.min(1, el / kc.dur);
+  const inMontage = kc.mlg && el >= kc.dur;
+  const prog = inMontage ? 1 : Math.min(1, el / kc.dur);
   const rt = kc.t0 + (kc.t1 - kc.t0) * prog;
   const { a, b, k } = sampleFrames(kc.frames, rt);
   const lerp = (u, v) => u + (v - u) * k;
@@ -1188,33 +1189,87 @@ function updateKillcam(dt) {
     const dir = vpos.clone().sub(kpos); dir.y = 0; if (dir.lengthSq() < 1e-3) dir.set(0, 0, 1); dir.normalize();
     const right = new THREE.Vector3(-dir.z, 0, dir.x);
     const camPos = kpos.clone().addScaledVector(dir, -1.5).addScaledVector(right, 0.9).add(new THREE.Vector3(0, 0.3, 0));
-    if (el < 0.05) cam.position.copy(camPos); else cam.position.lerp(camPos, 1 - Math.exp(-dt * 10));
+    if (el < 0.05) cam.position.copy(camPos); else cam.position.lerp(camPos, 1 - Math.exp(-dt * (inMontage ? 6 : 10)));
     cam.lookAt(vpos);
     let fov = vfovFrom(settings().fov);
-    if (kc.mlg && prog > 0.8) fov *= 1 - (prog - 0.8) / 0.2 * 0.45; // zoom dramatique
+    if (inMontage) {
+      const s = kc.shake || 0;
+      cam.position.x += (Math.random() - 0.5) * s * 0.4;
+      cam.position.y += (Math.random() - 0.5) * s * 0.4;
+      cam.rotateZ((Math.random() - 0.5) * s * 0.12);
+      fov *= 0.72 - s * 0.12; // cadrage serré + pulsation
+    } else if (kc.mlg && prog > 0.8) fov *= 1 - (prog - 0.8) / 0.2 * 0.4;
     if (Math.abs(cam.fov - fov) > 0.05) { cam.fov = fov; cam.updateProjectionMatrix(); }
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
     A.setListener(cam.position, fwd, new THREE.Vector3(0, 1, 0));
   }
-  if (kc.mlg) {
+  // phase replay MLG : hitmarkers « ding » de plus en plus serrés
+  if (kc.mlg && !inMontage) {
     kc.hitAcc += dt;
-    if (prog > 0.5 && prog < 0.97 && kc.hitAcc > 0.13) { kc.hitAcc = 0; hud.hitmarker(true, prog > 0.85); }
+    const dens = 0.32 - prog * 0.2;
+    if (prog > 0.25 && kc.hitAcc > dens) { kc.hitAcc = 0; hud.hitmarker(true, prog > 0.8); A.playDing(1 + prog * 0.4); }
   }
-  if (!kc.finished && prog >= 0.97) {
-    kc.finished = true;
-    if (kc.mlg) { A.playMlgDrop(); hud.mlg(true, 'REKT'); hud.mlgFlash('#ff00e6'); hud.hitmarker(true, true); }
+  if (inMontage) {
+    driveMlg(el - kc.dur, kc, dt);
+    if (el - kc.dur >= MONTAGE_DUR) { endKillcam(); return; }
+  } else if (!kc.mlg && el >= kc.dur + 0.25) { endKillcam(); return; }
+}
+
+const MONTAGE_DUR = 3.6;
+const MLG_TEXTS = ['REKT', 'MLG PRO', '360 NO SCOPE', 'WOW', 'GET REKT', 'NO SCOPE', 'ILLUMINATI CONFIRMED'];
+const MLG_SUBS = ['DORITOS', 'MOUNTAIN DEW', 'WOMBO COMBO', 'xX_PRO_Xx', 'DEAL WITH IT', 'SKRRT'];
+const MLG_FLY = ['🔺', '🥤', '🌮', '💵', '🔥', '👌', '💯', '🌈'];
+function driveMlg(mt, kc, dt) {
+  if (!kc.mStarted) {
+    kc.mStarted = true;
+    hud.killcam(false); // le bandeau laisse place au montage
+    hud.mlgStart(); hud.mlgText('GET REKT', '360 NO SCOPE'); hud.mlgFlash('#ff00e6');
+    A.playMlgDrop(); A.playAirhorn();
+    kc.beat = 0; kc.nextBeat = 0.55; kc.nextFling = 0.1; kc.nextHorn = 1.5; kc.shake = 0.9;
   }
-  if (el >= kc.dur + (kc.mlg ? 1.1 : 0.25)) endKillcam();
+  kc.shake = Math.max(0, (kc.shake || 0) - dt * 3);
+  if (mt >= kc.nextBeat && mt < MONTAGE_DUR - 0.3) {
+    kc.beat++; kc.nextBeat = mt + 0.5;
+    hud.mlgText(MLG_TEXTS[kc.beat % MLG_TEXTS.length], MLG_SUBS[kc.beat % MLG_SUBS.length]);
+    hud.mlgFlash(['#ff00e6', '#00e5ff', '#ffe600', '#37ff00'][kc.beat % 4]);
+    hud.hitmarker(true, true); A.playDing(1 + (kc.beat % 3) * 0.25);
+    kc.shake = 0.6;
+    if (kc.beat % 3 === 0) A.playAirhorn();
+  }
+  if (mt >= kc.nextFling) { kc.nextFling = mt + 0.2; hud.mlgFling(MLG_FLY[Math.floor(Math.random() * MLG_FLY.length)]); }
+  if (mt >= kc.nextHorn) { kc.nextHorn = mt + 1.3; A.playAirhorn(); }
 }
 
 function endKillcam() {
   if (!S.killcam) return;
   S.killcam = null;
-  hud.killcam(false); hud.mlg(false);
+  hud.killcam(false); hud.mlgStop();
   if (S.meAvatar) S.meAvatar.visible = false;
   const cam = S.camera, fov = vfovFrom(settings().fov);
   if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
   if (S.pendingDeath) { hud.death(true, S.pendingDeath); S.pendingDeath = null; }
+  if (S.pendingSpawn) { const m = S.pendingSpawn; S.pendingSpawn = null; applySpawn(m); }
+}
+
+function applySpawn(m) {
+  S.pendingDeath = null;
+  const me = S.me, b = me.body;
+  b.x = m.x; b.y = m.y; b.z = m.z; b.vx = b.vy = b.vz = 0; b.crouch = false; b.crouchT = 0; b.onGround = true;
+  me.yaw = m.yaw; me.pitch = 0;
+  me.alive = true; me.hp = m.hp; me.spawnSeq = m.seq;
+  me.protectUntil = performance.now() + m.protect * 1000;
+  me.punch = 0; me.punchYaw = 0; me.scoped = 0; me.rezoomAt = 0;
+  me.gg = m.gg || 0;
+  me.mana = m.mana !== undefined ? m.mana : PLAYER.manaMax;
+  me.nades = m.nades ? { ...m.nades } : {};
+  if (!GRENADES.includes(me.curNade) || !(me.nades[me.curNade] > 0)) { me.curNade = GRENADES.find((t) => me.nades[t] > 0) || 'he'; }
+  me.slowUntil = 0; me.slowMul = 1; me.shield = 0;
+  hud.setShield(0);
+  refreshNadeBelt();
+  giveWeapons(m.weapons, true);
+  hud.death(false);
+  hud.scope(0);
+  if (S.cfg.ladder) hud.center(`Niveau ${me.gg + 1}`, esc(WEAPONS[m.weapons[0]].name), 1500, '#ffb347');
 }
 
 // Joueur visé (pour afficher son nom)
@@ -1617,25 +1672,10 @@ function setupNet() {
   });
   on('spawn', (m) => {
     if (!S.active) return;
+    // pendant un montage MLG on diffère la réapparition jusqu'à la fin
+    if (S.killcam && S.killcam.mlg) { S.pendingSpawn = m; return; }
     if (S.killcam) endKillcam();
-    S.pendingDeath = null;
-    const me = S.me, b = me.body;
-    b.x = m.x; b.y = m.y; b.z = m.z; b.vx = b.vy = b.vz = 0; b.crouch = false; b.crouchT = 0; b.onGround = true;
-    me.yaw = m.yaw; me.pitch = 0;
-    me.alive = true; me.hp = m.hp; me.spawnSeq = m.seq;
-    me.protectUntil = performance.now() + m.protect * 1000;
-    me.punch = 0; me.punchYaw = 0; me.scoped = 0; me.rezoomAt = 0;
-    me.gg = m.gg || 0;
-    me.mana = m.mana !== undefined ? m.mana : PLAYER.manaMax;
-    me.nades = m.nades ? { ...m.nades } : {};
-    if (!GRENADES.includes(me.curNade) || !(me.nades[me.curNade] > 0)) { me.curNade = GRENADES.find((t) => me.nades[t] > 0) || 'he'; }
-    me.slowUntil = 0; me.slowMul = 1; me.shield = 0;
-    hud.setShield(0);
-    refreshNadeBelt();
-    giveWeapons(m.weapons, true);
-    hud.death(false);
-    hud.scope(0);
-    if (S.cfg.ladder) hud.center(`Niveau ${me.gg + 1}`, esc(WEAPONS[m.weapons[0]].name), 1500, '#ffb347');
+    applySpawn(m);
   });
   on('weapons', (m) => {
     if (!S.active) return;
@@ -1873,6 +1913,7 @@ if (new URLSearchParams(location.search).has('test')) {
     selectSpell(id) { selectSpell(id); return S.me.curSpell; },
     settings() { return settings(); },
     kcManual(v) { S._kcManual = v; },
+    mlgPreview() { hud.mlgStart(); hud.mlgText('GET REKT', '360 NO SCOPE'); for (let i = 0; i < 9; i++) hud.mlgFling(MLG_FLY[i % MLG_FLY.length]); hud.mlgFlash('#ff00e6'); },
     kcRender(prog) { const kc = S.killcam; if (!kc) return false; kc.start = performance.now() - prog * kc.dur * 1000; if (prog < 0.97) kc.finished = false; updateKillcam(0.016); S.pipeline.render(false, 0.016); return true; },
     me() { return S.me; },
     emit(m) { dispatch(m); },

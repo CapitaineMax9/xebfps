@@ -156,6 +156,14 @@ export function playAirhorn() {
   }
 }
 
+export function playDing(pitch = 1) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(null, 0.5);
+  tone(d, t, 0.16, { freq: 2100 * pitch, gain: 0.3, type: 'square' });
+  tone(d, t, 0.16, { freq: 3150 * pitch, gain: 0.15, type: 'sine' });
+}
+
 export function playMlgDrop() {
   if (!ctx) return;
   const t = ctx.currentTime;
