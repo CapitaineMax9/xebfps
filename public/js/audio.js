@@ -33,11 +33,15 @@ export function setListener(pos, fwd, up) {
   }
 }
 
+const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
+
 // Sortie : directe (son du joueur) ou spatialisée
 function out(pos, gain = 1, refDist = 6) {
   const g = ctx.createGain();
-  g.gain.value = gain;
-  if (pos) {
+  g.gain.value = Math.max(0, fin(gain, 1));
+  // position spatialisée seulement si toutes les coordonnées sont finies
+  const spatial = pos && Number.isFinite(pos.x) && Number.isFinite(pos.y) && Number.isFinite(pos.z);
+  if (spatial) {
     const p = ctx.createPanner();
     p.panningModel = 'HRTF';
     p.distanceModel = 'inverse';
@@ -55,9 +59,10 @@ function noise(dest, t, dur, { type = 'lowpass', freq = 2000, q = 0.7, freqEnd =
   const src = ctx.createBufferSource();
   src.buffer = noiseBuf;
   src.playbackRate.value = 0.8 + Math.random() * 0.4;
+  freq = Math.max(1, fin(freq, 2000)); gain = Math.max(0.0001, fin(gain, 1));
   const f = ctx.createBiquadFilter();
-  f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
-  if (freqEnd) f.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = Math.max(0.0001, fin(q, 0.7));
+  if (freqEnd) f.frequency.exponentialRampToValueAtTime(Math.max(1, fin(freqEnd, freq)), t + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + attack);
@@ -70,8 +75,9 @@ function noise(dest, t, dur, { type = 'lowpass', freq = 2000, q = 0.7, freqEnd =
 function tone(dest, t, dur, { type = 'sine', freq = 440, freqEnd = null, gain = 0.5, attack = 0.003 } = {}) {
   const o = ctx.createOscillator();
   o.type = type;
+  freq = Math.max(1, fin(freq, 440)); gain = Math.max(0.0001, fin(gain, 0.5));
   o.frequency.setValueAtTime(freq, t);
-  if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  if (freqEnd) o.frequency.exponentialRampToValueAtTime(Math.max(1, fin(freqEnd, freq)), t + dur);
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + attack);
@@ -117,7 +123,26 @@ Object.assign(SHOTS, {
   },
   zap: (d, t) => { tone(d, t, 0.4, { freq: 60, freqEnd: 55, gain: 0.5, type: 'square' }); noise(d, t, 0.4, { freq: 5000, type: 'highpass', gain: 0.5 }); },
   minigun: (d, t) => { noise(d, t, 0.1, { freq: 2800, freqEnd: 500, gain: 0.7 }); tone(d, t, 0.05, { freq: 140, freqEnd: 70, gain: 0.4, type: 'square' }); },
+  throw: (d, t) => { noise(d, t, 0.18, { freq: 1200, freqEnd: 400, gain: 0.3, type: 'bandpass', q: 1, attack: 0.03 }); },
+  cast_fire: (d, t) => { noise(d, t, 0.3, { freq: 900, freqEnd: 180, gain: 0.5, type: 'bandpass', q: 1 }); tone(d, t, 0.2, { freq: 120, freqEnd: 60, gain: 0.4, type: 'sawtooth' }); },
+  cast_bolt: (d, t) => { tone(d, t, 0.18, { freq: 1600, freqEnd: 400, gain: 0.35, type: 'sawtooth' }); noise(d, t, 0.2, { freq: 5000, type: 'highpass', gain: 0.4 }); },
+  cast_ice: (d, t) => { tone(d, t, 0.35, { freq: 2600, freqEnd: 900, gain: 0.25, type: 'sine' }); noise(d, t, 0.35, { freq: 4000, type: 'bandpass', q: 2, gain: 0.3 }); },
+  cast_arcane: (d, t) => { tone(d, t, 0.3, { freq: 520, freqEnd: 900, gain: 0.3, type: 'triangle' }); tone(d, t, 0.3, { freq: 780, freqEnd: 1300, gain: 0.15, type: 'triangle' }); },
+  cast_heal: (d, t) => { tone(d, t, 0.4, { freq: 660, freqEnd: 990, gain: 0.3, type: 'sine' }); tone(d, t + 0.1, 0.4, { freq: 880, freqEnd: 1320, gain: 0.2, type: 'sine' }); },
+  cast_summon: (d, t) => { tone(d, t, 0.5, { freq: 200, freqEnd: 400, gain: 0.35, type: 'square' }); noise(d, t, 0.4, { freq: 600, gain: 0.25, type: 'bandpass', q: 1, attack: 0.1 }); },
 });
+
+export function playFlashbang(pos = null, intensity = 1) {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(pos, 1.3 * intensity, 10);
+  noise(d, t, 0.25, { freq: 6000, freqEnd: 1500, gain: 1.2 });
+  tone(d, t, 0.15, { freq: 200, freqEnd: 90, gain: 0.8, type: 'triangle' });
+  // acouphène pour celui qui est flashé
+  if (!pos && intensity > 0.3) { const g = out(null, 0.25 * intensity); tone(g, t + 0.05, 1.5 * intensity, { freq: 4200, gain: 0.3, type: 'sine', attack: 0.05 }); }
+}
+
+export function playFireLoop() { /* le feu utilise des particules, pas de boucle audio dédiée */ }
 
 export function playSaber(pos = null, swing = false) {
   if (!ctx) return;

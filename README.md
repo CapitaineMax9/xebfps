@@ -19,7 +19,7 @@ et laissent leur place dès qu'un humain arrive.
 
 **Cartes :** Oasis (village du désert, longs couloirs pour l'AWP), Docks (conteneurs, combats rapprochés), Duel (carte longue type « awp_ »).
 
-**44 armes :**
+**44 armes à feu + 8 sorts de magie + 4 grenades :**
 - Fusils : AK-47, M4A1-S, M4A4, FAMAS (rafales de 3), Galil AR, AUG (lunette), SG 553 (lunette)
 - Snipers : AWP, SSG 08, SCAR-20, G3SG1 (semi-automatiques)
 - Mitraillettes : MP9, MAC-10, MP7, MP5-SD, UMP-45, PP-Bizon (64 balles), P90
@@ -29,6 +29,26 @@ et laissent leur place dès qu'un humain arrive.
 - Corps à corps : couteau (Karambit, Baïonnette, Papillon, Couteau pliant), **poêle** (BONK) ou **sabre laser** (grande allonge).
 
 Choix de l'arme principale, du pistolet et de l'arme de corps à corps avec **B**.
+
+## Magie ✦
+
+Une **catégorie d'arme principale à part** (menu **B**, onglet « Magie ✦ »). Les sorts ne consomment pas de
+munitions mais du **mana**, affiché en bleu dans le HUD et qui **se régénère tout seul** : il faut doser.
+
+- **Feu & foudre** : *Boule de feu* (projectile explosif) et *Éclair en chaîne* (rebondit sur les ennemis proches).
+- **Glace & arcane** : *Rayon de givre* (dégâts + **ralentit** la cible) et *Orbe arcanique* (traverse et perce).
+- **Soin & support** : *Bâton de soin* (rend des PV autour de toi) et *Égide arcanique* (**bouclier** qui absorbe les dégâts).
+- **Invocation & téléport** : *Bâton de saut* (téléportation courte) et *Totem gardien* (tourelle qui tire toute seule).
+
+## Grenades
+
+Un **stock de grenades par vie**, rechargé à chaque réapparition. **G** pour lancer, **4 5 6 7** (ou la molette)
+pour choisir le type ; la ceinture en bas du HUD montre ce qu'il te reste.
+
+- **Explosive (HE)** : grosse explosion à l'impact après la mèche.
+- **Aveuglante (Flash)** : éblouit ceux qui regardent (écran blanc pour les joueurs, bots désorientés).
+- **Fumigène** : nuage de fumée qui **coupe la ligne de vue** (et celle des bots).
+- **Cocktail Molotov** : flaque de feu qui **brûle** quiconque reste dedans.
 
 ## Skins
 
@@ -78,7 +98,8 @@ personnages articulés (course, accroupi, saut, chute) et armes détaillées. Si
 | Espace / Ctrl ou C / Maj | Sauter / s'accroupir / marcher |
 | Clic gauche / clic droit | Tirer / lunette (AWP, SSG) ou coup lourd au couteau |
 | R / 1 2 3 / molette / A (AZERTY) | Recharger / changer d'arme / dernière arme |
-| F / B / Tab / Entrée | Inspecter / choix des armes / scores / chat |
+| G / 4 5 6 7 | Lancer une grenade / choisir le type (HE, Flash, Fumigène, Molotov) |
+| F / B / Tab / Entrée | Inspecter / choix des armes (dont Magie ✦) / scores / chat |
 
 ## Lancer en local
 

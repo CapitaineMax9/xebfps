@@ -1,6 +1,7 @@
 // Modèles low-poly des armes, couteaux et personnages.
 import * as THREE from 'three';
 import { SKINS } from '/shared/skins.js';
+import { WEAPONS } from '/shared/weapons.js';
 import { skinTexture, skinFinish } from './skinTex.js';
 
 // ── Géométries avec UV à l'échelle (pour que le motif du skin ait une densité constante)
@@ -660,6 +661,16 @@ export function buildProjectile(kind) {
     b.cyl(0.035, 0.08, 0, 0, 0, 'warhead', 10);
     b.cyl(0.02, 0.04, 0, 0, -0.06, 'dark', 8, 0.012);
     b.box(0.01, 0.03, 0.01, 0, 0.03, 0.03, 'metal');
+  } else if (kind === 'frag' || kind === 'flash' || kind === 'smoke' || kind === 'molo') {
+    const col = { frag: 0x3a5a2a, flash: 0x9aa0a6, smoke: 0x6a6e72, molo: 0x8a5a2a }[kind];
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, metalness: kind === 'frag' ? 0.3 : 0.1 }));
+    if (kind === 'molo') { m.scale.set(0.8, 1.3, 0.8); m.material.transparent = true; m.material.opacity = 0.85; }
+    g.add(m);
+  } else if (kind === 'fireball' || kind === 'orb') {
+    const col = kind === 'fireball' ? 0xff7a1a : 0xb06bff;
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshBasicMaterial({ color: col })); core.material.toneMapped = false; g.add(core);
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false })); g.add(halo);
+    const light = new THREE.PointLight(col, 1.5, 3); g.add(light);
   } else {
     b.cyl(0.006, 0.42, 0, 0, 0, 'steel', 6);
     b.cyl(0.012, 0.04, 0, 0, -0.22, 'metal', 6, 0.001);
@@ -800,6 +811,36 @@ const KNIFE_BUILDERS = {
  * item : objet d'inventaire équipé ({skin, float, seed, st, kills}) ou null
  * opts.statTrak : affiche le compteur
  */
+// Couleurs des grenades et des éléments magiques
+const NADE_COL = { he: 0x3a5a2a, flash: 0x9aa0a6, smoke: 0x6a6e72, molotov: 0x8a4a1a };
+const ELEM_COL = { fire: 0xff6a1a, bolt: 0x5ad0ff, ice: 0x9fe8ff, arcane: 0xb06bff, heal: 0x4fe08a, shield: 0xffd23f, tele: 0xc06bff, summon: 0x6affc0 };
+
+function buildGrenadeVM(g, type) {
+  const b = makeBuilder(g, {});
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), new THREE.MeshStandardMaterial({ color: NADE_COL[type] || 0x3a5a2a, roughness: 0.6, metalness: 0.3 }));
+  if (type === 'molotov') { body.scale.set(0.8, 1.4, 0.8); body.material.color.set(0x8a5a2a); body.material.transparent = true; body.material.opacity = 0.85; const rag = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.05, 6), new THREE.MeshStandardMaterial({ color: 0xddcf9a })); rag.position.y = 0.08; g.add(rag); }
+  if (type === 'smoke' || type === 'flash') body.scale.set(0.75, 1.3, 0.75);
+  g.add(body);
+  b.box(0.01, 0.02, 0.01, 0, 0.055, 0, 'metal');
+  return { muzzle: [0, 0, -0.1] };
+}
+
+function buildStaffVM(g, element) {
+  const b = makeBuilder(g, {});
+  const col = ELEM_COL[element] || 0xb06bff;
+  b.cyl(0.012, 0.52, 0, 0, 0.0, 'wood', 8);
+  b.cyl(0.016, 0.04, 0, 0, -0.24, 'dark', 8);
+  const claw = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 16, Math.PI * 1.5), new THREE.MeshStandardMaterial({ color: 0x5a4a32, roughness: 0.7 }));
+  claw.position.set(0, 0, -0.3); claw.rotation.x = Math.PI / 2; g.add(claw);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 12), new THREE.MeshBasicMaterial({ color: col }));
+  orb.material.toneMapped = false; orb.position.set(0, 0, -0.3); g.add(orb);
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.position.copy(orb.position); g.add(glow);
+  const light = new THREE.PointLight(col, 1.2, 1.2); light.position.copy(orb.position); g.add(light);
+  g.userData.orb = [orb, glow];
+  return { muzzle: [0, 0, -0.35] };
+}
+
 export function buildWeapon(weaponId, item = null, opts = {}) {
   const g = new THREE.Group();
   const skin = item && SKINS[item.skin] ? SKINS[item.skin] : null;
@@ -810,6 +851,10 @@ export function buildWeapon(weaponId, item = null, opts = {}) {
     const type = skin && skin.knife ? skin.knife : 'default';
     KNIFE_BUILDERS[type](b);
     info = { muzzle: [0, 0, -0.2] };
+  } else if (WEAPONS[weaponId] && WEAPONS[weaponId].kind === 'grenade') {
+    info = buildGrenadeVM(g, WEAPONS[weaponId].grenade);
+  } else if (WEAPONS[weaponId] && WEAPONS[weaponId].kind === 'magic') {
+    info = buildStaffVM(g, WEAPONS[weaponId].element);
   } else if (BUILDERS[weaponId]) {
     info = BUILDERS[weaponId](b, g);
     if (DETAILS[weaponId] && opts.detail !== false) DETAILS[weaponId](b);

@@ -286,9 +286,65 @@ export const WEAPONS = {
     damage: 70, heavyDamage: 120, backstab: 160, heavyBackstab: 250,
     range: 2.6, heavyRange: 2.4, fireDelay: 0.38, heavyDelay: 0.85, draw: 0.4, sound: 'saber',
   },
+
+  // ── Grenades à lancer (slot 4, touche G) ───────────────────────────────
+  he: {
+    id: 'he', name: 'Grenade HE', kind: 'grenade', grenade: 'he', slot: 4, draw: 0.6, fireDelay: 0.9, speed: 6.2,
+    projectile: { speed: 22, gravity: 13, bounce: 0.42, fuse: 1600, splash: 5.5, self: 0.5, model: 'frag' },
+    damage: 110, sound: 'rpg',
+  },
+  flash: {
+    id: 'flash', name: 'Grenade aveuglante', kind: 'grenade', grenade: 'flash', slot: 4, draw: 0.55, fireDelay: 0.8, speed: 6.2,
+    projectile: { speed: 24, gravity: 13, bounce: 0.5, fuse: 1300, model: 'flash' }, sound: 'throw',
+  },
+  smoke: {
+    id: 'smoke', name: 'Fumigène', kind: 'grenade', grenade: 'smoke', slot: 4, draw: 0.55, fireDelay: 0.8, speed: 6.2,
+    projectile: { speed: 22, gravity: 13, bounce: 0.3, fuse: 1500, model: 'smoke' }, sound: 'throw',
+  },
+  molotov: {
+    id: 'molotov', name: 'Cocktail Molotov', kind: 'grenade', grenade: 'molotov', slot: 4, draw: 0.6, fireDelay: 0.9, speed: 6.2,
+    projectile: { speed: 22, gravity: 13, bounce: 0, fuse: 4000, model: 'molo' }, damage: 8, sound: 'throw',
+  },
+
+  // ── Magie (catégorie d'arme principale, coûte du mana) ─────────────────
+  fireball: {
+    id: 'fireball', name: 'Boule de feu', kind: 'magic', element: 'fire', staff: 'fire', slot: 1, draw: 0.6, fireDelay: 0.7, mana: 34, speed: 5.9,
+    cast: 'proj', projectile: { speed: 30, gravity: 2.5, splash: 3.6, self: 0.3, model: 'fireball' }, damage: 85, sound: 'cast_fire',
+  },
+  chainbolt: {
+    id: 'chainbolt', name: 'Éclair en chaîne', kind: 'magic', element: 'bolt', staff: 'bolt', slot: 1, draw: 0.6, fireDelay: 0.55, mana: 30, speed: 6.0,
+    cast: 'chain', damage: 52, range: 60, chain: { jumps: 3, radius: 7, falloff: 0.72 }, sound: 'cast_bolt',
+  },
+  frostbeam: {
+    id: 'frostbeam', name: 'Rayon de givre', kind: 'magic', element: 'ice', staff: 'ice', slot: 1, draw: 0.6, fireDelay: 0.3, mana: 13, speed: 6.0,
+    cast: 'beam', damage: 20, range: 45, slow: { mul: 0.45, dur: 1500 }, sound: 'cast_ice',
+  },
+  arcaneorb: {
+    id: 'arcaneorb', name: 'Orbe arcanique', kind: 'magic', element: 'arcane', staff: 'arcane', slot: 1, draw: 0.6, fireDelay: 0.5, mana: 22, speed: 6.0,
+    cast: 'proj', projectile: { speed: 42, gravity: 0, splash: 1.6, self: 0, model: 'orb' }, damage: 55, sound: 'cast_arcane',
+  },
+  healstaff: {
+    id: 'healstaff', name: 'Bâton de soin', kind: 'magic', element: 'heal', staff: 'heal', slot: 1, draw: 0.6, fireDelay: 0.5, mana: 24, speed: 6.1,
+    cast: 'heal', heal: 24, radius: 6, sound: 'cast_heal',
+  },
+  aegis: {
+    id: 'aegis', name: 'Égide arcanique', kind: 'magic', element: 'shield', staff: 'shield', slot: 1, draw: 0.6, fireDelay: 1.0, mana: 45, speed: 6.1,
+    cast: 'shield', shield: 80, dur: 7000, sound: 'cast_heal',
+  },
+  blink: {
+    id: 'blink', name: 'Bâton de saut', kind: 'magic', element: 'tele', staff: 'tele', slot: 1, draw: 0.5, fireDelay: 0.9, mana: 30, speed: 6.2,
+    cast: 'blink', dist: 7, sound: 'cast_arcane',
+  },
+  totem: {
+    id: 'totem', name: 'Totem gardien', kind: 'magic', element: 'summon', staff: 'summon', slot: 1, draw: 0.8, fireDelay: 1.4, mana: 60, speed: 6.0,
+    cast: 'turret', turret: { hp: 60, dmg: 14, rof: 0.35, range: 42, life: 14000 }, sound: 'cast_summon',
+  },
 };
 
-export const PRIMARIES = ['ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'awp', 'ssg08', 'scar20', 'g3sg1', 'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90', 'nova', 'xm1014', 'mag7', 'sawedoff', 'm249', 'negev', 'minigun', 'railgun', 'rpg', 'gl', 'crossbow', 'confetti'];
+export const PRIMARIES = ['ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'awp', 'ssg08', 'scar20', 'g3sg1', 'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90', 'nova', 'xm1014', 'mag7', 'sawedoff', 'm249', 'negev', 'minigun', 'railgun', 'rpg', 'gl', 'crossbow', 'confetti', 'fireball', 'chainbolt', 'frostbeam', 'arcaneorb', 'healstaff', 'aegis', 'blink', 'totem'];
+export const MAGIC = ['fireball', 'chainbolt', 'frostbeam', 'arcaneorb', 'healstaff', 'aegis', 'blink', 'totem'];
+export const GRENADES = ['he', 'flash', 'smoke', 'molotov'];
+export const GRENADE_STOCK = { he: 1, flash: 2, smoke: 2, molotov: 1 };
 export const SECONDARIES = ['usp', 'glock', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus'];
 export const MELEES = ['knife', 'pan', 'saber'];
 export const SKINNABLE = ['knife', 'pan', 'saber', 'glock', 'usp', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus', 'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90', 'nova', 'xm1014', 'mag7', 'sawedoff', 'confetti', 'ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'm249', 'negev', 'minigun', 'ssg08', 'scar20', 'g3sg1', 'awp', 'railgun', 'rpg', 'gl', 'crossbow'];

@@ -13,6 +13,8 @@ export const PLAYER = {
   eye: 1.62,
   crouchEye: 1.2, // au niveau des yeux du modèle accroupi
   maxHp: 100,
+  manaMax: 100,
+  manaRegen: 14, // mana par seconde
 };
 
 export const PHYS = {

@@ -2,10 +2,10 @@
 import { TICK_RATE, SNAPSHOT_RATE, MAX_REWIND, PLAYER, CREDITS } from '../shared/constants.js';
 import { MAPS } from '../shared/maps.js';
 import { MODES, ggLevelWeapon, GUNGAME_LADDER } from '../shared/modes.js';
-import { WEAPONS, PRIMARIES, SECONDARIES, MELEES, minFireDelay } from '../shared/weapons.js';
+import { WEAPONS, PRIMARIES, SECONDARIES, MELEES, MAGIC, GRENADES, GRENADE_STOCK, minFireDelay } from '../shared/weapons.js';
 import { SKINS } from '../shared/skins.js';
 import { raycastMap, rayPlayer, lineOfSight, HIT_HEAD, HIT_MULT } from '../shared/raycast.js';
-import { createBody, eyeHeight } from '../shared/physics.js';
+import { createBody, eyeHeight, collides } from '../shared/physics.js';
 import { NavGrid } from './nav.js';
 import { BotBrain, BOT_NAMES } from './bot.js';
 import * as ACC from './accounts.js';
@@ -78,6 +78,11 @@ export class Player {
     this.color = Math.floor(Math.random() * 6);
     this.streak = 0;
     this.cheats = {};
+    this.mana = PLAYER.manaMax;
+    this.nades = {};
+    this.slowUntil = 0; this.slowMul = 1;
+    this.shield = 0; this.shieldUntil = 0;
+    this.blindUntil = 0;
   }
   get x() { return this.body.x; } get y() { return this.body.y; } get z() { return this.body.z; }
   eye() { return this.body.y + eyeHeight(this.body); }
@@ -107,6 +112,10 @@ export class Room {
     this.players = new Map();
     this.projectiles = [];
     this.projSeq = 0;
+    this.fires = [];
+    this.smokes = [];
+    this.turrets = [];
+    this.fxSeq = 0;
     this.state = 'idle';
     this.matchStart = 0;
     this.matchEnd = 0;
@@ -191,6 +200,7 @@ export class Room {
   removePlayer(p) {
     if (!this.players.has(p.id)) return;
     this.players.delete(p.id);
+    for (const tr of this.turrets) if (tr.owner === p) tr.owner = null;
     this.broadcast({ t: 'pleave', id: p.id });
     if (!p.isBot) {
       this.broadcast({ t: 'chat', sys: true, msg: `${p.name} a quitté la partie.` });
@@ -267,6 +277,7 @@ export class Room {
     this.matchEnd = this.matchStart + this.cfg.timeLimit * 1000;
     this.teamScore = [0, 0];
     this.projectiles = [];
+    this.fires = []; this.smokes = []; this.turrets = [];
     for (const p of this.players.values()) {
       p.kills = 0; p.deaths = 0; p.hs = 0; p.assists = 0; p.ggLevel = 0; p.ggKills = 0; p.streak = 0; p.cheatedMatch = false;
       p.alive = false;
@@ -360,11 +371,14 @@ export class Room {
     p.hasShot = false;
     p.scoped = false;
     p.damageBy.clear();
+    p.mana = PLAYER.manaMax;
+    p.slowUntil = 0; p.slowMul = 1; p.shield = 0; p.shieldUntil = 0; p.blindUntil = 0;
+    p.nades = this.cfg.choice ? { ...GRENADE_STOCK } : {};
     p.weapons = this.weaponsFor(p);
     p.cur = p.weapons[0];
     p.history.length = 0;
     if (p.brain) p.brain.onSpawn();
-    p.send({ t: 'spawn', x: b.x, y: b.y, z: b.z, yaw: p.yaw, weapons: p.weapons, hp: p.hp, seq: p.spawnSeq, protect: this.cfg.protect, gg: p.ggLevel });
+    p.send({ t: 'spawn', x: b.x, y: b.y, z: b.z, yaw: p.yaw, weapons: p.weapons, hp: p.hp, seq: p.spawnSeq, protect: this.cfg.protect, gg: p.ggLevel, nades: p.nades, mana: p.mana });
   }
 
   // ── Boucle ───────────────────────────────────────────────────────────────
@@ -389,6 +403,7 @@ export class Room {
       }
     }
     this.stepProjectiles(dt);
+    this.updateWorldEffects(dt, t);
     this.snapAcc += dt;
     if (this.snapAcc >= 1 / SNAPSHOT_RATE - 1e-4) { this.snapAcc = Math.min(this.snapAcc - 1 / SNAPSHOT_RATE, 1 / SNAPSHOT_RATE); this.sendSnapshot(t); }
     this.boardAcc += dt;
@@ -441,6 +456,8 @@ export class Room {
       case 'st': this.onState(p, m); break;
       case 'shot': this.onShot(p, m); break;
       case 'knife': this.onKnife(p, m); break;
+      case 'nade': this.onNade(p, m); break;
+      case 'cast': this.onCast(p, m); break;
       case 'loadout': this.setLoadout(p, m.lo); break;
       case 'chat': {
         const msg = String(m.msg || '').slice(0, 140).trim();
@@ -515,7 +532,7 @@ export class Room {
     const wid = m.w;
     if (!has(WEAPONS, wid)) return;
     const w = WEAPONS[wid];
-    if (w.kind === 'knife') return;
+    if (w.kind === 'knife' || w.kind === 'magic' || w.kind === 'grenade') return;
     if (!this.canFire(p, wid)) return;
     const o = m.o;
     if (!Array.isArray(o) || o.length !== 3 || !o.every(Number.isFinite)) return;
@@ -630,17 +647,18 @@ export class Room {
   }
 
   // ── Projectiles (roquettes, carreaux d'arbalète) ─────────────────────────
-  launch(p, wid, o, d0) {
+  launch(p, wid, o, d0, speedMul = 1) {
     if (!Array.isArray(d0) || d0.length !== 3) return;
     let [dx, dy, dz] = d0.map(Number);
     const l = Math.hypot(dx, dy, dz);
     if (!(l > 0.5 && l < 1.5)) return;
     dx /= l; dy /= l; dz /= l;
     const P = WEAPONS[wid].projectile;
+    const sp = P.speed * speedMul;
     const pr = {
       id: ++this.projSeq, owner: p, wid, born: now(),
       x: o[0] + dx * 0.4, y: o[1] + dy * 0.4 - 0.05, z: o[2] + dz * 0.4,
-      vx: dx * P.speed, vy: dy * P.speed, vz: dz * P.speed,
+      vx: dx * sp, vy: dy * sp, vz: dz * sp,
     };
     this.projectiles.push(pr);
     this.broadcast({ t: 'pj', id: pr.id, by: p.id, w: wid, o: [pr.x, pr.y, pr.z].map((v) => +v.toFixed(3)), v: [pr.vx, pr.vy, pr.vz].map((v) => +v.toFixed(3)) });
@@ -691,6 +709,16 @@ export class Room {
     pr.done = true;
     const w = WEAPONS[pr.wid], P = w.projectile, owner = pr.owner;
     const pt = [pr.x, pr.y, pr.z];
+    const gr = w.grenade;
+    if (gr === 'flash' || gr === 'smoke' || gr === 'molotov') {
+      if (this.state === 'playing') {
+        if (gr === 'flash') this.flashbang(pt);
+        else if (gr === 'smoke') this.spawnSmoke(pt);
+        else this.spawnFire(pt, owner);
+      }
+      this.broadcast({ t: 'px', id: pr.id, p: pt.map((v) => +v.toFixed(2)), n: n.map((v) => +v.toFixed(2)), g: gr });
+      return;
+    }
     const one = owner.cheats && owner.cheats.oneshot;
     if (this.state === 'playing') {
       if (P.splash > 0) {
@@ -721,9 +749,194 @@ export class Room {
     this.broadcast({ t: 'px', id: pr.id, p: pt.map((v) => +v.toFixed(2)), n: n.map((v) => +v.toFixed(2)), hit: !!hitQ, boom: P.splash > 0 });
   }
 
+  // ── Grenades à lancer ────────────────────────────────────────────────────
+  onNade(p, m) {
+    if (this.state !== 'playing' || !p.alive) return;
+    const type = m.g;
+    if (!GRENADES.includes(type) || !(p.nades[type] > 0)) return;
+    const o = m.o, d = m.d;
+    if (!Array.isArray(o) || o.length !== 3 || !o.every(Number.isFinite)) return;
+    if (!Array.isArray(d) || d.length !== 3) return;
+    if (Math.hypot(o[0] - p.body.x, o[1] - p.eye(), o[2] - p.body.z) > 1.6) return;
+    const t = now();
+    if (t - (p.lastShot._nade || 0) < 500) return;
+    p.lastShot._nade = t;
+    p.nades = { ...p.nades, [type]: p.nades[type] - 1 };
+    this.launch(p, type, o, d, m.under ? 0.5 : 1);
+    this.broadcast({ t: 'nadefx', id: p.id }, p);
+    p.send({ t: 'nades', n: p.nades });
+  }
+
+  flashbang(pt) {
+    const t = now();
+    for (const q of this.players.values()) {
+      if (!q.alive) continue;
+      const ex = q.body.x, ey = q.eye(), ez = q.body.z;
+      const dx = pt[0] - ex, dy = pt[1] - ey, dz = pt[2] - ez;
+      const dist = Math.hypot(dx, dy, dz);
+      if (dist > 20) continue;
+      if (!lineOfSight(this.map.boxes, ex, ey, ez, pt[0], pt[1], pt[2])) continue;
+      const cp = Math.cos(q.pitch);
+      const fx = -Math.sin(q.yaw) * cp, fy = Math.sin(q.pitch), fz = -Math.cos(q.yaw) * cp;
+      const dot = (dx * fx + dy * fy + dz * fz) / (dist || 1);
+      const facing = Math.max(0, (dot + 0.3) / 1.3);
+      const inten = Math.max(0, facing * (1 - dist / 20));
+      if (inten < 0.08) continue;
+      const dur = Math.round(500 + inten * 3200);
+      if (q.isBot) q.blindUntil = Math.max(q.blindUntil, t + dur * 0.7);
+      else q.send({ t: 'flash', dur, i: +inten.toFixed(2) });
+    }
+  }
+
+  spawnSmoke(pt) {
+    const id = ++this.fxSeq;
+    const sm = { id, x: pt[0], y: Math.max(0.1, pt[1]), z: pt[2], r: 3.6, until: now() + 15000 };
+    this.smokes.push(sm);
+    this.broadcast({ t: 'smoke', id, p: [sm.x, sm.y, sm.z].map((v) => +v.toFixed(2)), r: sm.r, add: true });
+  }
+
+  spawnFire(pt, owner) {
+    const id = ++this.fxSeq;
+    const fr = { id, x: pt[0], y: Math.max(0.05, pt[1]), z: pt[2], r: 2.6, until: now() + 7000, owner, nextTick: now() + 300 };
+    this.fires.push(fr);
+    this.broadcast({ t: 'fire', id, p: [fr.x, fr.y, fr.z].map((v) => +v.toFixed(2)), r: fr.r, add: true });
+  }
+
+  // La fumée bloque-t-elle la ligne A→B ? (utilisé par les bots)
+  smokeBlocks(ax, ay, az, bx, by, bz) {
+    for (const sm of this.smokes) {
+      const dx = bx - ax, dy = by - ay, dz = bz - az; const len2 = dx * dx + dy * dy + dz * dz || 1;
+      let tt = ((sm.x - ax) * dx + (sm.y - ay) * dy + (sm.z - az) * dz) / len2; tt = Math.max(0, Math.min(1, tt));
+      if (Math.hypot(sm.x - (ax + dx * tt), sm.y - (ay + dy * tt), sm.z - (az + dz * tt)) < sm.r * 0.9) return true;
+    }
+    return false;
+  }
+
+  // ── Sorts (magie) ──────────────────────────────────────────────────────────
+  onCast(p, m) {
+    if (this.state !== 'playing' || !p.alive) return;
+    const wid = m.w, w = WEAPONS[wid];
+    if (!w || w.kind !== 'magic' || !p.weapons.includes(wid)) return;
+    const o = m.o;
+    if (!Array.isArray(o) || o.length !== 3 || !o.every(Number.isFinite)) return;
+    if (Math.hypot(o[0] - p.body.x, o[1] - p.eye(), o[2] - p.body.z) > 1.6) return;
+    const t = now();
+    if (t - (p.lastShot[wid] || 0) < w.fireDelay * 1000 * 0.8) return;
+    if (p.mana < w.mana) { p.send({ t: 'mana', m: Math.round(p.mana) }); return; }
+    const d = Array.isArray(m.d) && m.d.length === 3 && m.d.every(Number.isFinite) ? m.d : null;
+    if ((w.cast === 'proj' || w.cast === 'chain' || w.cast === 'beam' || w.cast === 'blink' || w.cast === 'turret') && !d) return;
+    p.lastShot[wid] = t; p.mana -= w.mana; p.hasShot = true; p.protectUntil = 0;
+    let rt = Number(m.rt); if (!Number.isFinite(rt)) rt = t; rt = Math.max(t - MAX_REWIND, Math.min(t, rt));
+    switch (w.cast) {
+      case 'proj': this.launch(p, wid, o, d); break;
+      case 'chain': this.castChain(p, w, o, d, rt); break;
+      case 'beam': this.castBeam(p, w, o, d, rt); break;
+      case 'heal': this.castHeal(p, w); break;
+      case 'shield': p.shield = w.shield; p.shieldUntil = t + w.dur; p.send({ t: 'shield', s: p.shield }); this.broadcast({ t: 'sp', k: 'shield', id: p.id }); break;
+      case 'blink': this.castBlink(p, d, w.dist); break;
+      case 'turret': this.spawnTurret(p, o, d, w); break;
+    }
+    p.send({ t: 'mana', m: Math.round(p.mana) });
+    this.broadcast({ t: 'cfx', id: p.id, w: wid, o: o.map((v) => +v.toFixed(2)) }, p);
+  }
+
+  castChain(p, w, o, d, rt) {
+    let [dx, dy, dz] = d; const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+    const mh = raycastMap(this.map.boxes, o[0], o[1], o[2], dx, dy, dz, w.range);
+    let best = mh.t, first = null;
+    for (const q of this.enemiesOf(p)) { const s = this.stateAt(q, rt); const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0, s.yaw); if (r && r.t < best) { best = r.t; first = q; } }
+    const pts = [o.slice(), [o[0] + dx * Math.min(best, w.range), o[1] + dy * Math.min(best, w.range), o[2] + dz * Math.min(best, w.range)]];
+    if (first) {
+      const seen = new Set([first]); let dmg = w.damage;
+      this.damage(first, p, dmg, w.id, false, {});
+      let cx = first.body.x, cy = first.body.y + 1.0, cz = first.body.z;
+      pts[1] = [cx, cy, cz];
+      for (let j = 0; j < w.chain.jumps; j++) {
+        dmg *= w.chain.falloff; let nx = null, nd = w.chain.radius;
+        for (const q of this.enemiesOf(p)) { if (seen.has(q)) continue; const dd = Math.hypot(q.body.x - cx, q.body.z - cz); if (dd < nd && lineOfSight(this.map.boxes, cx, cy, cz, q.body.x, q.body.y + 1.0, q.body.z)) { nd = dd; nx = q; } }
+        if (!nx) break;
+        seen.add(nx); this.damage(nx, p, dmg, w.id, false, {});
+        cx = nx.body.x; cy = nx.body.y + 1.0; cz = nx.body.z; pts.push([cx, cy, cz]);
+      }
+    }
+    this.broadcast({ t: 'sp', k: 'chain', pts: pts.map((pp) => pp.map((v) => +v.toFixed(2))) });
+  }
+
+  castBeam(p, w, o, d, rt) {
+    let [dx, dy, dz] = d; const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+    const mh = raycastMap(this.map.boxes, o[0], o[1], o[2], dx, dy, dz, w.range);
+    let best = mh.t, tq = null;
+    for (const q of this.enemiesOf(p)) { const s = this.stateAt(q, rt); const r = rayPlayer(o[0], o[1], o[2], dx, dy, dz, best, s.x, s.y, s.z, s.c, 0, s.yaw); if (r && r.t < best) { best = r.t; tq = q; } }
+    if (tq) {
+      this.damage(tq, p, w.damage, w.id, false, {});
+      tq.slowUntil = now() + w.slow.dur; tq.slowMul = w.slow.mul;
+      if (!tq.isBot) tq.send({ t: 'slow', mul: w.slow.mul, dur: w.slow.dur });
+    }
+    this.broadcast({ t: 'sp', k: 'beam', o: o.map((v) => +v.toFixed(2)), e: [o[0] + dx * Math.min(best, w.range), o[1] + dy * Math.min(best, w.range), o[2] + dz * Math.min(best, w.range)].map((v) => +v.toFixed(2)) });
+  }
+
+  castHeal(p, w) {
+    const targets = [p];
+    if (this.cfg.teams) for (const q of this.players.values()) if (q !== p && q.alive && q.team === p.team && Math.hypot(q.body.x - p.body.x, q.body.z - p.body.z) < w.radius) targets.push(q);
+    for (const q of targets) { if (!q.alive) continue; q.hp = Math.min(PLAYER.maxHp, q.hp + w.heal); if (!q.isBot) q.send({ t: 'heal', hp: q.hp }); }
+    this.broadcast({ t: 'sp', k: 'heal', id: p.id });
+  }
+
+  castBlink(p, d, dist) {
+    let dx = d[0], dz = d[2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    const b = p.body, h = b.crouch ? PLAYER.crouchHeight : PLAYER.height;
+    let moved = 0;
+    for (let step = 0.4; step <= dist; step += 0.4) { if (collides(this.map.boxes, b.x + dx * step, b.y + 0.05, b.z + dz * step, h)) break; moved = step; }
+    if (moved > 0.3) { b.x += dx * moved; b.z += dz * moved; p.history.length = 0; if (!p.isBot) p.send({ t: 'tp', x: +b.x.toFixed(2), y: +b.y.toFixed(2), z: +b.z.toFixed(2) }); }
+    this.broadcast({ t: 'sp', k: 'blink', id: p.id, p: [b.x, b.y, b.z].map((v) => +v.toFixed(2)) });
+  }
+
+  spawnTurret(p, o, d, w) {
+    let [dx, dy, dz] = d; const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
+    const fx = o[0] + dx * 2.2, fz = o[2] + dz * 2.2, fy = o[1];
+    const down = raycastMap(this.map.boxes, fx, fy, fz, 0, -1, 0, 4);
+    const gy = down.t < 4 ? fy - down.t + 0.01 : p.body.y;
+    const id = ++this.fxSeq;
+    this.turrets.push({ id, owner: p, x: fx, y: gy, z: fz, until: now() + w.turret.life, nextFire: now() + 500, def: w.turret });
+    this.broadcast({ t: 'turret', id, by: p.id, p: [fx, gy, fz].map((v) => +v.toFixed(2)), add: true });
+  }
+
+  updateWorldEffects(dt, t) {
+    for (const p of this.players.values()) {
+      if (p.alive) p.mana = Math.min(PLAYER.manaMax, p.mana + PLAYER.manaRegen * dt);
+      if (p.slowUntil && t > p.slowUntil) { p.slowUntil = 0; p.slowMul = 1; }
+      if (p.shieldUntil && t > p.shieldUntil) { p.shield = 0; p.shieldUntil = 0; }
+    }
+    for (const fr of this.fires) {
+      if (t > fr.until) { fr.dead = true; this.broadcast({ t: 'fire', id: fr.id, add: false }); continue; }
+      if (t >= fr.nextTick) {
+        fr.nextTick = t + 400;
+        for (const q of this.players.values()) { if (!q.alive) continue; if (Math.hypot(q.body.x - fr.x, q.body.z - fr.z) <= fr.r && q.body.y < fr.y + 2.2) this.damage(q, fr.owner, 9, 'molotov', false, {}); }
+      }
+    }
+    if (this.fires.some((f) => f.dead)) this.fires = this.fires.filter((f) => !f.dead);
+    for (const sm of this.smokes) if (t > sm.until) { sm.dead = true; this.broadcast({ t: 'smoke', id: sm.id, add: false }); }
+    if (this.smokes.some((x) => x.dead)) this.smokes = this.smokes.filter((x) => !x.dead);
+    for (const tr of this.turrets) {
+      if (t > tr.until || !tr.owner || !this.players.has(tr.owner.id)) { tr.dead = true; this.broadcast({ t: 'turret', id: tr.id, add: false }); continue; }
+      if (t < tr.nextFire) continue;
+      let best = null, bd = tr.def.range;
+      for (const q of this.players.values()) { if (!q.alive || q === tr.owner) continue; if (this.cfg.teams && q.team === tr.owner.team) continue; const dd = Math.hypot(q.body.x - tr.x, q.body.z - tr.z); if (dd < bd && lineOfSight(this.map.boxes, tr.x, tr.y + 0.6, tr.z, q.body.x, q.body.y + 1.0, q.body.z)) { bd = dd; best = q; } }
+      if (best) { tr.nextFire = t + tr.def.rof * 1000; this.damage(best, tr.owner, tr.def.dmg, 'totem', false, {}); this.broadcast({ t: 'tfx', id: tr.id, e: [+best.body.x.toFixed(2), +(best.body.y + 1).toFixed(2), +best.body.z.toFixed(2)] }); }
+    }
+    if (this.turrets.some((x) => x.dead)) this.turrets = this.turrets.filter((x) => !x.dead);
+  }
+
   damage(q, attacker, amount, wid, hs, extra = {}) {
     if (!q.alive || amount <= 0) return;
     if (q.cheats && q.cheats.god && q !== attacker) return;
+    // bouclier arcanique : absorbe les dégâts
+    if (q.shield > 0 && now() < q.shieldUntil) {
+      const absorb = Math.min(q.shield, amount);
+      q.shield -= absorb; amount -= absorb;
+      if (!q.isBot) q.send({ t: 'shield', s: Math.round(q.shield) });
+      if (amount <= 0) { attacker.send({ t: 'hit', id: q.id, dmg: 0, hs, shield: true }); return; }
+    }
     if (now() < q.protectUntil) {
       attacker.send({ t: 'hit', id: q.id, dmg: 0, hs, prot: true });
       return;
