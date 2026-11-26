@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   sens: 2.0, scopeSens: 1.0, fov: 90, volume: 0.6,
   crossColor: '#4cff6a', crossSize: 7, crossGap: 4, crossThick: 2, crossDot: false, crossDynamic: true,
   shadows: true, showFps: false, quality: 1, viewmodelFov: 68, bob: true, gfx: 'auto', gfxV: 2,
+  killcam: true, mlg: false,
 };
 
 const ls = {

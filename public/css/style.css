@@ -335,6 +335,20 @@ input:disabled { opacity: .6; }
 /* bouclier */
 #shield-ind { position: absolute; left: 20px; bottom: 92px; background: rgba(255,210,63,.15); border: 1px solid rgba(255,210,63,.4); color: #ffd23f; padding: 4px 10px; border-radius: 6px; font-family: var(--font2); font-weight: 700; }
 
+/* Killcam + MLG */
+#killcam-ui { position: absolute; inset: 0; pointer-events: none; }
+#kc-banner { position: absolute; top: 98px; left: 50%; transform: translateX(-50%); background: rgba(10,12,16,.72); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; padding: 7px 18px; font-family: var(--font2); font-weight: 700; letter-spacing: .06em; font-size: 15px; color: #fff; white-space: nowrap; }
+#kc-banner .kc-rec { color: #ff3b3b; animation: kcblink 1s steps(2) infinite; }
+@keyframes kcblink { 50% { opacity: .25; } }
+#killcam-ui::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 140px rgba(0,0,0,.55); }
+#mlg-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; mix-blend-mode: screen; }
+#mlg-ui { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+#mlg-glasses { font-size: 110px; transform: translateY(-260px); transition: transform .5s cubic-bezier(.3,1.5,.5,1); filter: drop-shadow(0 4px 10px rgba(0,0,0,.6)); }
+#mlg-ui.show #mlg-glasses { transform: translateY(-20px); }
+#mlg-text { font-family: var(--font2); font-weight: 700; font-size: 72px; letter-spacing: .04em; color: #fff; text-shadow: 3px 3px 0 #ff00c8, -3px -3px 0 #00e5ff, 0 0 20px rgba(255,255,255,.5); opacity: 0; transform: scale(.4) rotate(-6deg); }
+#mlg-ui.show #mlg-text { animation: mlgpop .5s forwards; }
+@keyframes mlgpop { to { opacity: 1; transform: scale(1) rotate(-6deg); } }
+
 /* Barre de sorts (magie) en bas à gauche */
 #spell-belt { position: absolute; left: 20px; bottom: 124px; display: flex; gap: 5px; }
 #spell-belt::before { content: 'SORTS · molette'; position: absolute; left: 2px; top: -16px; font-family: var(--font2); font-size: 10px; letter-spacing: .08em; color: rgba(190,160,255,.75); }

@@ -66,6 +66,32 @@ export const hud = {
     el.innerHTML = belt.map((s, i) => `<div class="spell-slot ${s.sel ? 'sel' : ''} ${s.low ? 'low' : ''}"><div class="si">${s.icon}</div><div class="sn">${esc(s.name)}</div><div class="sm">${s.mana}</div></div>`).join('');
   },
 
+  killcam(show, text = '') {
+    const el = $('killcam-ui');
+    if (!el) return;
+    el.classList.toggle('hidden', !show);
+    if (show) $('kc-text').innerHTML = text;
+  },
+
+  // Overlay MLG : lunettes qui tombent + gros texte
+  mlg(show, text = 'REKT') {
+    const el = $('mlg-ui');
+    if (!el) return;
+    if (!show) { el.classList.add('hidden'); el.classList.remove('show'); return; }
+    $('mlg-text').textContent = text;
+    el.classList.remove('hidden');
+    // relance l'animation
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  },
+
+  mlgFlash(color = '#ff00e6') {
+    const el = $('mlg-flash');
+    if (!el) return;
+    el.style.background = `radial-gradient(circle, ${color} 0%, transparent 70%)`;
+    el.style.transition = 'none'; el.style.opacity = '0.85';
+    requestAnimationFrame(() => { el.style.transition = 'opacity .4s'; el.style.opacity = '0'; });
+  },
+
   flash(dur, intensity) {
     const el = $('flash-overlay');
     el.style.transition = 'none';

@@ -42,7 +42,9 @@ zones, cast rapide) et très animés.
 - **Feu & foudre** : *Boule de feu* (projectile explosif, grosse zone) et *Éclair en chaîne* (rebondit sur jusqu'à 6 ennemis).
 - **Glace & arcane** : *Rayon de givre* (dégâts + **ralentit** fort la cible) et *Orbe arcanique* (traverse et perce, très rapide).
 - **Soin & support** : *Bâton de soin* (rend beaucoup de PV autour de toi) et *Égide arcanique* (**gros bouclier** qui absorbe les dégâts).
-- **Invocation & téléport** : *Bâton de saut* (téléportation) et *Totem gardien* (tourelle costaud qui tire toute seule).
+- **Invocation & téléport** : *Bâton de saut* (téléportation) et *Totem gardien* (tourelle costaud qui tire toute seule — **une seule à la fois** par joueur, en reposer une remplace l'ancienne).
+
+Chaque sort projette de **grands cercles runiques** (au sol et devant le bâton), des éclats de lumière colorés et des anneaux de choc.
 
 ## Grenades
 
@@ -87,6 +89,12 @@ Stockage : fichier `data/accounts.json` par défaut (parfait en local ou sur un 
 
 Onglet **CLASSEMENT** : top 50 des comptes enregistrés par **Kills**, **Victoires**, **K/D** et **Headshots %**
 (minimum 20 kills pour le K/D et les headshots), avec ta position même hors du top 50.
+
+## Killcam & mode MLG
+
+À ta mort, une **killcam** rejoue tes dernières secondes vues du côté de ton tueur (réglable dans **PARAMÈTRES**,
+activée par défaut). Active le **mode MLG 😎** pour transformer ça en montage meme : hitmarkers et **corne de brume**,
+lunettes « Deal With It » + gros **REKT**, flashs colorés, zoom dramatique et **drop** épique au moment du kill.
 
 ## Graphismes
 

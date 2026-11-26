@@ -708,6 +708,8 @@ function renderSettings() {
     ['bob', 'Balancement de l\'arme', 'checkbox'],
     ['shadows', 'Ombres', 'checkbox'],
     ['showFps', 'Afficher les FPS', 'checkbox'],
+    ['killcam', 'Killcam (replay de ta mort)', 'checkbox'],
+    ['mlg', 'Mode MLG 😎 (montage meme à la mort/kill)', 'checkbox'],
   ];
   f.innerHTML = '<h3>Paramètres</h3>';
   const gq = document.createElement('div');

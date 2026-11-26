@@ -162,6 +162,8 @@ export function enterGame(msg) {
   S.matchEnd = msg.endsAt;
   S.players.clear();
   S.ui = null;
+  S.recBuf = []; S.killcam = null; S.pendingDeath = null; S._recLast = 0;
+  if (S.meAvatar) { S.scene.remove(S.meAvatar); S.meAvatar = null; }
   for (const p of msg.players) if (p.id !== S.me.id) addRemote(p); else S.me.team = p.team;
   loadMap(msg.map);
   hud.show();
@@ -179,6 +181,9 @@ export function enterGame(msg) {
 
 export function exitGame() {
   S.active = false;
+  S.killcam = null; S.recBuf = []; S.pendingDeath = null;
+  hud.killcam(false); hud.mlg(false);
+  if (S.meAvatar) { S.scene.remove(S.meAvatar); S.meAvatar = null; }
   clearProjectiles();
   clearWorldFx();
   for (const p of S.players.values()) removeAvatar(p);
@@ -911,7 +916,12 @@ function castSpell(w) {
   if (S.vm) { S.vm.kick += 0.05; S.vm.kickRot += 0.09; if (S.vm.model.userData.orb) pulseOrb(S.vm.model.userData.orb, 2.6); }
   const from = muzzleWorldPos();
   S.effects.castFlash(from, col);
+  // cercle runique au sol sous le lanceur + cercle devant le bâton (style mod magie)
+  const feet = new THREE.Vector3(me.body.x, me.body.y + 0.06, me.body.z);
+  const big = w.cast === 'heal' || w.cast === 'shield' || w.cast === 'turret';
+  S.effects.magicCircle(feet, col, { r: big ? (w.radius ? w.radius * 1.1 : 2.2) : 1.4, dur: big ? 0.9 : 0.6, up: true, spin: big ? 3 : 5 });
   if (w.cast === 'proj' || w.cast === 'chain' || w.cast === 'beam') {
+    S.effects.magicCircle(from, col, { r: 0.8, dur: 0.5, dir: new THREE.Vector3(...d), spin: 8 });
     if (w.cast === 'beam') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); S.effects.ring(from, col, 0.9, 0.35); if (hit.map) { S.effects.impact(hit.point, hit.normal); S.effects.ring(hit.point, col, 1.2, 0.4); } }
     else if (w.cast === 'chain') { const hit = localTrace(o, new THREE.Vector3(...d), w.range); S.effects.beam(from, hit.point, col); S.effects.burst(from, null, col, 14, 4, 0.08, 0.4, 0); }
     else { S.effects.burst(from, new THREE.Vector3(...d), col, 16, 5, 0.1, 0.5, 0); S.effects.ring(from, col, 0.8, 0.3); }
@@ -1109,6 +1119,104 @@ function updateCamera(dt) {
   A.setListener(cam.position, fwd, up);
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// Killcam (mini-replay de ta mort, option MLG)
+// ════════════════════════════════════════════════════════════════════════
+const REC_HZ = 30, REC_SECONDS = 3.2;
+function recordFrame() {
+  if (!S.me) return;
+  const now = performance.now();
+  if (S._recLast && now - S._recLast < 1000 / REC_HZ) return;
+  S._recLast = now;
+  const me = S.me;
+  const ents = [{ id: me.id, x: me.body.x, y: me.body.y, z: me.body.z, yaw: me.yaw, pitch: me.pitch, ct: me.body.crouchT || 0, wid: me.cur, air: !me.body.onGround, alive: me.alive, me: true }];
+  for (const p of S.players.values()) ents.push({ id: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, ct: p.ct, wid: p.wid, air: !!(p.flags & 16), alive: p.alive });
+  S.recBuf.push({ t: now, ents });
+  const cutoff = now - REC_SECONDS * 1000;
+  while (S.recBuf.length && S.recBuf[0].t < cutoff) S.recBuf.shift();
+}
+const entAt = (frame, id) => frame.ents.find((e) => e.id === id);
+
+function startKillcam(killerId) {
+  const st = settings();
+  if (!st.killcam || killerId === S.me.id || S.recBuf.length < 3) return false;
+  const frames = S.recBuf.slice();
+  if (!entAt(frames[frames.length - 1], killerId)) return false; // besoin du tueur enregistré
+  if (!S.meAvatar) { S.meAvatar = buildAvatar(S.cfg.teams ? (S.me.team === 0 ? 0 : 1) : ((S.me.color || 0) % 6)); S.scene.add(S.meAvatar); }
+  const dur = Math.min(2.6, Math.max(1.3, (S.cfg.respawn || 2) * 0.95));
+  S.killcam = { frames, t0: frames[0].t, t1: frames[frames.length - 1].t, start: performance.now(), dur, killerId, mlg: !!st.mlg, hitAcc: 0, finished: false };
+  if (S.vm) S.vm.root.visible = false;
+  if (S.killcam.mlg) A.playAirhorn();
+  hud.killcam(true, `tué par <b style="color:${colorOf(killerId)}">${esc(nameOf(killerId))}</b>`);
+  return true;
+}
+
+function sampleFrames(frames, rt) {
+  let a = frames[0], b = frames[frames.length - 1];
+  for (let i = 0; i < frames.length - 1; i++) { if (frames[i].t <= rt && frames[i + 1].t >= rt) { a = frames[i]; b = frames[i + 1]; break; } }
+  const k = b.t > a.t ? Math.max(0, Math.min(1, (rt - a.t) / (b.t - a.t))) : 0;
+  return { a, b, k };
+}
+
+function updateKillcam(dt) {
+  const kc = S.killcam;
+  const el = (performance.now() - kc.start) / 1000;
+  const prog = Math.min(1, el / kc.dur);
+  const rt = kc.t0 + (kc.t1 - kc.t0) * prog;
+  const { a, b, k } = sampleFrames(kc.frames, rt);
+  const lerp = (u, v) => u + (v - u) * k;
+  const yawLerp = (u, v) => { let d = v - u; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return u + d * k; };
+  for (const ea of a.ents) {
+    const av = ea.me ? S.meAvatar : (S.players.get(ea.id) && S.players.get(ea.id).avatar);
+    if (!av) continue;
+    if (!ea.alive && !ea.me) { av.visible = false; continue; }
+    const eb = entAt(b, ea.id) || ea;
+    av.visible = true;
+    av.position.set(lerp(ea.x, eb.x), lerp(ea.y, eb.y), lerp(ea.z, eb.z));
+    av.rotation.y = yawLerp(ea.yaw, eb.yaw);
+    const kind = WEAPONS[ea.wid] ? WEAPONS[ea.wid].kind : 'rifle';
+    const deadK = ea.me ? Math.max(-1, (prog - 0.82) / 0.18) : -1; // la victime s'effondre à la fin
+    poseAvatar(av, { walk: performance.now() / 120, move: 0, crouch: ea.ct, air: ea.air, pitch: ea.pitch || 0, kind, dead: deadK });
+    if (ea.me && S.players.get(ea.id)) { /* rien */ }
+  }
+  // caméra derrière le tueur, regarde la victime
+  const kA = entAt(a, kc.killerId), vA = entAt(a, S.me.id), kB = entAt(b, kc.killerId) || kA, vB = entAt(b, S.me.id) || vA;
+  const cam = S.camera;
+  if (kA && vA) {
+    const kpos = new THREE.Vector3(lerp(kA.x, kB.x), lerp(kA.y, kB.y) + 1.7, lerp(kA.z, kB.z));
+    const vpos = new THREE.Vector3(lerp(vA.x, vB.x), lerp(vA.y, vB.y) + 1.1, lerp(vA.z, vB.z));
+    const dir = vpos.clone().sub(kpos); dir.y = 0; if (dir.lengthSq() < 1e-3) dir.set(0, 0, 1); dir.normalize();
+    const right = new THREE.Vector3(-dir.z, 0, dir.x);
+    const camPos = kpos.clone().addScaledVector(dir, -1.5).addScaledVector(right, 0.9).add(new THREE.Vector3(0, 0.3, 0));
+    if (el < 0.05) cam.position.copy(camPos); else cam.position.lerp(camPos, 1 - Math.exp(-dt * 10));
+    cam.lookAt(vpos);
+    let fov = vfovFrom(settings().fov);
+    if (kc.mlg && prog > 0.8) fov *= 1 - (prog - 0.8) / 0.2 * 0.45; // zoom dramatique
+    if (Math.abs(cam.fov - fov) > 0.05) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    A.setListener(cam.position, fwd, new THREE.Vector3(0, 1, 0));
+  }
+  if (kc.mlg) {
+    kc.hitAcc += dt;
+    if (prog > 0.5 && prog < 0.97 && kc.hitAcc > 0.13) { kc.hitAcc = 0; hud.hitmarker(true, prog > 0.85); }
+  }
+  if (!kc.finished && prog >= 0.97) {
+    kc.finished = true;
+    if (kc.mlg) { A.playMlgDrop(); hud.mlg(true, 'REKT'); hud.mlgFlash('#ff00e6'); hud.hitmarker(true, true); }
+  }
+  if (el >= kc.dur + (kc.mlg ? 1.1 : 0.25)) endKillcam();
+}
+
+function endKillcam() {
+  if (!S.killcam) return;
+  S.killcam = null;
+  hud.killcam(false); hud.mlg(false);
+  if (S.meAvatar) S.meAvatar.visible = false;
+  const cam = S.camera, fov = vfovFrom(settings().fov);
+  if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+  if (S.pendingDeath) { hud.death(true, S.pendingDeath); S.pendingDeath = null; }
+}
+
 // Joueur visé (pour afficher son nom)
 function updateAimTarget() {
   const me = S.me;
@@ -1260,6 +1368,16 @@ function loop(t) {
   if (!S.active || !S.map) return;
   autoQuality(t);
   const tj = performance.now();
+  recordFrame();
+  if (S.killcam) {
+    if (!S._kcManual) updateKillcam(dt);
+    updateProjectiles(dt);
+    updateWorldFx(dt);
+    S.effects.update(dt);
+    updateHud(dt);
+    S.pipeline.render(false, dt);
+    return;
+  }
   updateMovement(dt);
   updateWeapon(dt);
   sendState(dt);
@@ -1499,6 +1617,8 @@ function setupNet() {
   });
   on('spawn', (m) => {
     if (!S.active) return;
+    if (S.killcam) endKillcam();
+    S.pendingDeath = null;
     const me = S.me, b = me.body;
     b.x = m.x; b.y = m.y; b.z = m.z; b.vx = b.vy = b.vz = 0; b.crouch = false; b.crouchT = 0; b.onGround = true;
     me.yaw = m.yaw; me.pitch = 0;
@@ -1595,16 +1715,20 @@ function setupNet() {
     const col = ELEM_LOCAL[w.element] || 0xb06bff;
     let from = new THREE.Vector3(m.o[0], m.o[1], m.o[2]);
     if (p.weapon && p.avatar && p.avatar.visible) { p.weapon.updateMatrixWorld(true); p.weapon.userData.muzzle.getWorldPosition(from); }
-    S.effects.burst(from, null, col, 6, 2, 0.06, 0.4, 0);
+    S.effects.burst(from, null, col, 10, 3, 0.08, 0.45, 0);
+    S.effects.castFlash(from, col);
+    S.effects.magicCircle(new THREE.Vector3(p.x, p.y + 0.06, p.z), col, { r: 1.4, dur: 0.6, up: true, spin: 5 });
+    const dir = w.cast === 'proj' || w.cast === 'beam' || w.cast === 'chain';
+    if (dir) S.effects.magicCircle(from, col, { r: 0.8, dur: 0.5, dir: new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), p.yaw || 0), spin: 8 });
     A.playShot(w.sound, from);
   });
   on('sp', (m) => {
     if (!S.active) return;
-    if (m.k === 'chain') { for (let i = 0; i < m.pts.length - 1; i++) { const a = new THREE.Vector3(...m.pts[i]), b = new THREE.Vector3(...m.pts[i + 1]); S.effects.beam(a, b, 0x5ad0ff); } A.playShot('cast_bolt', new THREE.Vector3(...m.pts[0])); }
-    else if (m.k === 'beam') { S.effects.beam(new THREE.Vector3(...m.o), new THREE.Vector3(...m.e), 0x9fe8ff); }
-    else if (m.k === 'heal') { const p = m.id === S.me.id ? S.me.body : S.players.get(m.id); if (p) healAura(p.x, p.y, p.z, 0x4fe08a); }
-    else if (m.k === 'shield') { const p = m.id === S.me.id ? S.me.body : S.players.get(m.id); if (p) healAura(p.x, p.y, p.z, 0xffd23f); }
-    else if (m.k === 'blink') { S.effects.burst(new THREE.Vector3(...m.p).setY(m.p[1] + 1), null, 0xc06bff, 14, 4, 0.08, 0.5, 0); }
+    if (m.k === 'chain') { for (let i = 0; i < m.pts.length - 1; i++) { const a = new THREE.Vector3(...m.pts[i]), b = new THREE.Vector3(...m.pts[i + 1]); S.effects.beam(a, b, 0x5ad0ff); } const end = new THREE.Vector3(...m.pts[m.pts.length - 1]); S.effects.ring(end, 0x5ad0ff, 1.2, 0.4); A.playShot('cast_bolt', new THREE.Vector3(...m.pts[0])); }
+    else if (m.k === 'beam') { const e = new THREE.Vector3(...m.e); S.effects.beam(new THREE.Vector3(...m.o), e, 0x9fe8ff); S.effects.ring(e, 0x9fe8ff, 1, 0.35); }
+    else if (m.k === 'heal') { const p = m.id === S.me.id ? S.me.body : S.players.get(m.id); if (p) { healAura(p.x, p.y, p.z, 0x4fe08a); S.effects.magicCircle(new THREE.Vector3(p.x, p.y + 0.06, p.z), 0x4fe08a, { r: 2.4, dur: 0.9, up: true, spin: 3 }); } }
+    else if (m.k === 'shield') { const p = m.id === S.me.id ? S.me.body : S.players.get(m.id); if (p) { healAura(p.x, p.y, p.z, 0xffd23f); S.effects.magicCircle(new THREE.Vector3(p.x, p.y + 0.06, p.z), 0xffd23f, { r: 2, dur: 0.9, up: true, spin: 3 }); } }
+    else if (m.k === 'blink') { const pos = new THREE.Vector3(...m.p); S.effects.burst(pos.clone().setY(m.p[1] + 1), null, 0xc06bff, 18, 5, 0.1, 0.5, 0); S.effects.magicCircle(pos.clone().setY(m.p[1] + 0.06), 0xc06bff, { r: 1.5, dur: 0.6, up: true, spin: 7 }); }
   });
   on('rl', (m) => { const p = S.players.get(m.id); if (p) A.playReload(WEAPONS[p.wid]?.kind, { x: p.x, y: p.y + 1.2, z: p.z }); });
   on('hit', (m) => {
@@ -1652,10 +1776,13 @@ function setupNet() {
       S.deathPos = new THREE.Vector3(me.body.x, me.body.y + 1.2, me.body.z);
       const kp = S.players.get(m.k);
       const sk = kp && kp.skins[m.w];
-      hud.death(true, {
+      const deathInfo = {
         killer: m.k === me.id ? 'Suicide' : `Tué par <b style="color:${colorOf(m.k)}">${esc(nameOf(m.k))}</b> avec <b>${esc(kw ? kw.name : m.w)}</b>${m.hs ? ' (headshot)' : ''}${m.k !== me.id ? ` — il lui reste ${m.kh} PV` : ''}`,
         skin: sk ? `Skin : ${esc(itemFullName(sk))}` : '',
-      });
+      };
+      // killcam (mini-replay) : on diffère le panneau de mort jusqu'à la fin
+      if (startKillcam(m.k)) S.pendingDeath = deathInfo;
+      else hud.death(true, deathInfo);
     }
   });
   on('credits', (m) => {
@@ -1744,6 +1871,9 @@ if (new URLSearchParams(location.search).has('test')) {
     selectNade(type) { selectNade(type); },
     castNow() { const w = WEAPONS[S.me.cur]; if (w.kind === 'magic') { S.me.firedPress = false; S.me.nextFire = 0; castSpell(WEAPONS[S.me.curSpell] || w); } },
     selectSpell(id) { selectSpell(id); return S.me.curSpell; },
+    settings() { return settings(); },
+    kcManual(v) { S._kcManual = v; },
+    kcRender(prog) { const kc = S.killcam; if (!kc) return false; kc.start = performance.now() - prog * kc.dur * 1000; if (prog < 0.97) kc.finished = false; updateKillcam(0.016); S.pipeline.render(false, 0.016); return true; },
     me() { return S.me; },
     emit(m) { dispatch(m); },
     aimAtNearest() {
