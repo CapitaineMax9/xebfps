@@ -17,6 +17,24 @@ function navFor(mapId) {
   return navCache[mapId];
 }
 
+// Battle Royale : phases de la zone (to = fraction du rayon initial, dmg = PV/s hors zone)
+const BR_PHASES = [
+  { wait: 16, shrink: 16, to: 0.60, dmg: 2 },
+  { wait: 13, shrink: 14, to: 0.38, dmg: 3 },
+  { wait: 11, shrink: 12, to: 0.22, dmg: 5 },
+  { wait: 9, shrink: 10, to: 0.12, dmg: 8 },
+  { wait: 7, shrink: 8, to: 0.05, dmg: 12 },
+  { wait: 6, shrink: 7, to: 0.015, dmg: 20 },
+];
+// Armes dispersées au sol (pistolets → fusils → snipers)
+const BR_LOOT_POOL = [
+  'glock', 'usp', 'p2000', 'fiveseven', 'tec9', 'deagle', 'r8',
+  'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'p90', 'bizon',
+  'nova', 'xm1014', 'mag7', 'sawedoff',
+  'famas', 'galil', 'ak47', 'm4a1s', 'm4a4', 'aug', 'sg553',
+  'ssg08', 'awp', 'scar20', 'g3sg1', 'm249',
+];
+
 const now = () => performance.now();
 const has = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
 // un joueur avec au moins un outil privé actif ne compte pas dans le classement
@@ -125,6 +143,12 @@ export class Room {
     this.boardAcc = 0;
     this.emptySince = now();
     this.botNameIdx = Math.floor(Math.random() * BOT_NAMES.length);
+    // Battle Royale
+    this.zone = null;
+    this.loot = [];
+    this.lootSeq = 0;
+    this.brActive = false;
+    this.zoneAcc = 0;
   }
 
   get map() { return MAPS[this.mapId]; }
@@ -163,6 +187,7 @@ export class Room {
       t: 'joined', you: p.id, room: this.summary(), mode: this.mode, map: this.mapId,
       players: [...this.players.values()].map((q) => q.info()),
       endsAt: this.matchEnd, serverTime: now(), state: this.state, teamScore: this.teamScore,
+      zone: this.zone ? this.zoneMsg() : null, loot: this.cfg.br ? this.lootMsg() : null,
     });
     this.broadcast({ t: 'pjoin', p: p.info() }, p);
     this.broadcast({ t: 'chat', sys: true, msg: `${p.name} a rejoint la partie.` });
@@ -263,6 +288,12 @@ export class Room {
       const w = ggLevelWeapon(p.ggLevel);
       return w === 'knife' ? ['knife'] : [w, 'knife'];
     }
+    // Battle Royale : les humains démarrent au couteau et lootent ; les bots sont équipés
+    if (this.cfg.br) {
+      const mel = MELEES.includes(p.loadout.melee) ? p.loadout.melee : 'knife';
+      if (p.isBot) return [p.loadout.primary, p.loadout.secondary, mel];
+      return [mel];
+    }
     return [p.loadout.primary, p.loadout.secondary, MELEES.includes(p.loadout.melee) ? p.loadout.melee : 'knife'];
   }
 
@@ -291,9 +322,13 @@ export class Room {
       list.sort((a, b) => (a.isBot ? 1 : 0) - (b.isBot ? 1 : 0));
       for (const p of list) this.assignTeam(p);
     }
+    // Battle Royale : zone + loot
+    this.zone = null; this.loot = [];
+    if (this.cfg.br) { this.initZone(); this.initLoot(); }
     this.broadcast({
       t: 'match', map: this.mapId, mode: this.mode, endsAt: this.matchEnd, serverTime: now(),
       players: [...this.players.values()].map((q) => q.info()),
+      zone: this.zone ? this.zoneMsg() : null, loot: this.cfg.br ? this.lootMsg() : null,
     });
     for (const p of this.players.values()) this.scheduleRespawn(p, 0.2 + (p.isBot ? Math.random() * 0.8 : 0));
     this.sendBoard();
@@ -378,7 +413,119 @@ export class Room {
     p.cur = p.weapons[0];
     p.history.length = 0;
     if (p.brain) p.brain.onSpawn();
+    p.eliminated = false;
     p.send({ t: 'spawn', x: b.x, y: b.y, z: b.z, yaw: p.yaw, weapons: p.weapons, hp: p.hp, seq: p.spawnSeq, protect: this.cfg.protect, gg: p.ggLevel, nades: p.nades, mana: p.mana });
+  }
+
+  // ── Battle Royale ──────────────────────────────────────────────────────────
+  initZone() {
+    const s = this.map.size;
+    // rayon initial : englobe tous les points d'apparition
+    let maxSp = 0;
+    for (const sp of this.map.spawns.ffa || []) maxSp = Math.max(maxSp, Math.hypot(sp[0], sp[1]));
+    const r0 = Math.max(Math.min(s[0], s[1]) / 2 * 0.9, maxSp + 3);
+    this.zone = { cx: 0, cz: 0, r0, r: r0, nextR: r0, phase: 0, state: 'wait', tChange: now() + BR_PHASES[0].wait * 1000, dmg: BR_PHASES[0].dmg, shrinkFrom: 0, shrinkTo: 0, shrinkStart: r0 };
+    this.zoneAcc = 0;
+  }
+  zoneMsg() {
+    const z = this.zone;
+    return { cx: +z.cx.toFixed(1), cz: +z.cz.toFixed(1), r: +z.r.toFixed(2), nextR: +z.nextR.toFixed(2), phase: z.phase, state: z.state, shrinkTo: z.state === 'shrink' ? z.shrinkTo : 0 };
+  }
+  broadcastZone() { if (this.zone) this.broadcast({ t: 'zone', z: this.zoneMsg() }); }
+
+  initLoot() {
+    this.loot = []; this.lootSeq = 0;
+    const nav = this.nav;
+    if (!nav.walkList.length) return;
+    const count = Math.max(16, Math.min(44, Math.floor(nav.walkList.length / 32)));
+    const used = new Set();
+    for (let i = 0; i < count; i++) {
+      let k = nav.randomNode(), tries = 0;
+      while (used.has(k) && tries++ < 12) k = nav.randomNode();
+      used.add(k);
+      const [x, z] = nav.center(k);
+      const y = (nav.y && nav.y[k]) || 0;
+      const wid = BR_LOOT_POOL[Math.floor(Math.random() * BR_LOOT_POOL.length)];
+      this.loot.push({ id: ++this.lootSeq, wid, x, y, z });
+    }
+  }
+  lootMsg() { return this.loot.map((l) => ({ id: l.id, w: l.wid, p: [+l.x.toFixed(2), +l.y.toFixed(2), +l.z.toFixed(2)] })); }
+
+  giveLoot(p, wid) {
+    const w = WEAPONS[wid];
+    if (!w) return;
+    if (!p.weapons.includes(wid)) {
+      const below = p.weapons.filter((x) => WEAPONS[x].slot < w.slot);
+      const above = p.weapons.filter((x) => WEAPONS[x].slot >= w.slot);
+      p.weapons = [...below, wid, ...above];
+    }
+    p.cur = wid;
+    p.send({ t: 'weapons', list: p.weapons, refill: true, pickup: wid });
+  }
+
+  zoneDamage(p, amount) {
+    if (!p.alive || now() < p.protectUntil) return;
+    const dmg = Math.min(p.hp, Math.round(amount));
+    if (dmg <= 0) return;
+    p.hp -= dmg;
+    if (!p.isBot) p.send({ t: 'dmg', from: p.id, fx: p.body.x, fz: p.body.z, dmg, hp: p.hp, hs: false, zone: true });
+    if (p.hp <= 0) this.kill(p, p, 'zone', false, { zone: true });
+  }
+
+  updateBR(dt, t) {
+    const z = this.zone;
+    if (z) {
+      // machine d'état de la zone
+      if (t >= z.tChange) {
+        if (z.state === 'wait') {
+          z.state = 'shrink'; z.shrinkStart = z.r;
+          z.nextR = z.r0 * BR_PHASES[z.phase].to;
+          z.shrinkFrom = t; z.shrinkTo = t + BR_PHASES[z.phase].shrink * 1000; z.tChange = z.shrinkTo;
+        } else {
+          z.r = z.nextR;
+          if (z.phase < BR_PHASES.length - 1) { z.phase++; z.state = 'wait'; z.tChange = t + BR_PHASES[z.phase].wait * 1000; }
+          else { z.state = 'done'; z.tChange = Infinity; }
+        }
+        this.broadcastZone();
+      }
+      if (z.state === 'shrink') {
+        const k = Math.max(0, Math.min(1, (t - z.shrinkFrom) / (z.shrinkTo - z.shrinkFrom || 1)));
+        z.r = z.shrinkStart + (z.nextR - z.shrinkStart) * k;
+      }
+      z.dmg = BR_PHASES[Math.min(z.phase, BR_PHASES.length - 1)].dmg;
+      // diffusion régulière du rayon courant (le client l'utilise tel quel)
+      this.zoneBcastAcc = (this.zoneBcastAcc || 0) + dt;
+      if (this.zoneBcastAcc >= 0.4) { this.zoneBcastAcc = 0; this.broadcastZone(); }
+      // dégâts hors zone par paliers de 0,5 s
+      this.zoneAcc += dt;
+      if (this.zoneAcc >= 0.5) {
+        this.zoneAcc = 0;
+        for (const p of this.players.values()) {
+          if (!p.alive) continue;
+          if (Math.hypot(p.body.x - z.cx, p.body.z - z.cz) > z.r + 0.5) this.zoneDamage(p, z.dmg * 0.5);
+        }
+      }
+    }
+    // ramassage du loot (humains)
+    if (this.loot.length) {
+      for (const p of this.players.values()) {
+        if (!p.alive || p.isBot) continue;
+        for (let i = this.loot.length - 1; i >= 0; i--) {
+          const l = this.loot[i];
+          if (Math.hypot(p.body.x - l.x, p.body.z - l.z) < 1.5 && Math.abs(p.body.y - l.y) < 2.5) {
+            this.giveLoot(p, l.wid);
+            this.loot.splice(i, 1);
+            this.broadcast({ t: 'loot', id: l.id, add: false });
+          }
+        }
+      }
+    }
+  }
+
+  checkBRWin() {
+    if (!this.cfg.br || this.state !== 'playing' || this.players.size < 2) return;
+    const alive = [...this.players.values()].filter((p) => p.alive);
+    if (alive.length <= 1) { this.sendBoard(); this.endMatch(alive[0] || null); }
   }
 
   // ── Boucle ───────────────────────────────────────────────────────────────
@@ -404,6 +551,7 @@ export class Room {
     }
     this.stepProjectiles(dt);
     this.updateWorldEffects(dt, t);
+    if (this.cfg.br) this.updateBR(dt, t);
     this.snapAcc += dt;
     if (this.snapAcc >= 1 / SNAPSHOT_RATE - 1e-4) { this.snapAcc = Math.min(this.snapAcc - 1 / SNAPSHOT_RATE, 1 / SNAPSHOT_RATE); this.sendSnapshot(t); }
     this.boardAcc += dt;
@@ -960,7 +1108,8 @@ export class Room {
     victim.hp = 0;
     victim.deaths++;
     victim.streak = 0;
-    this.scheduleRespawn(victim, this.cfg.respawn);
+    if (this.cfg.br) victim.eliminated = true; // pas de réapparition
+    else this.scheduleRespawn(victim, this.cfg.respawn);
     // assistance : >= 40 dégâts infligés par un autre joueur
     let assister = null;
     for (const [aid, d] of victim.damageBy) {
@@ -1020,6 +1169,7 @@ export class Room {
       }
     }
     // victoire ?
+    if (this.cfg.br) { this.checkBRWin(); return; }
     if (!this.cfg.ladder) {
       if (this.cfg.teams) {
         for (const tm of [0, 1]) if (this.teamScore[tm] >= this.cfg.killLimit) { this.sendBoard(); this.endMatch(null, tm); return; }

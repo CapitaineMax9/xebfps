@@ -234,6 +234,7 @@ const MODE_ART = {
   gungame: 'linear-gradient(135deg, #42b86a 0%, #1d5a3a 60%, #0f1a14 100%)',
   awp: 'linear-gradient(135deg, #a07cff 0%, #4a2a8a 60%, #140f24 100%)',
   hs: 'linear-gradient(135deg, #ff4f6a 0%, #7a1f3a 60%, #1f0f14 100%)',
+  br: 'linear-gradient(135deg, #2ee6c0 0%, #2a6a9a 50%, #171033 100%)',
 };
 
 function renderModeCards() {

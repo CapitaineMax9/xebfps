@@ -280,6 +280,16 @@ export class BotBrain {
     const nav = this.room.nav, b = this.p.body;
     const k = nav.nearest(b.x, b.z);
     const comp = k >= 0 ? nav.comp[k] : -1;
+    // Battle Royale : rejoindre la zone quand on est dehors ou au bord
+    const z = this.room.zone;
+    if (z && this.room.cfg.br) {
+      const d = Math.hypot(b.x - z.cx, b.z - z.cz);
+      if (d > z.r - 3) {
+        const ang = Math.random() * Math.PI * 2, rr = z.r * 0.5;
+        this.setGoal(z.cx + Math.cos(ang) * rr, z.cz + Math.sin(ang) * rr);
+        if (this.path) return;
+      }
+    }
     let gx, gz;
     const enemies = this.room.enemiesOf(this.p);
     if (enemies.length && Math.random() < 0.45) {

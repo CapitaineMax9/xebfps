@@ -143,7 +143,7 @@ function newMe(id) {
     inspectT: -1, stepAcc: 0, wasGround: true, team: -1, gg: 0, punch: 0, punchYaw: 0,
     kills: 0, deaths: 0, respawnAt: 0, flinch: 0,
     mana: PLAYER.manaMax, manaMax: PLAYER.manaMax, nades: {}, curNade: 'he',
-    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0, curSpell: null,
+    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0, curSpell: null, eliminated: false,
   };
 }
 
@@ -166,6 +166,7 @@ export function enterGame(msg) {
   if (S.meAvatar) { S.scene.remove(S.meAvatar); S.meAvatar = null; }
   for (const p of msg.players) if (p.id !== S.me.id) addRemote(p); else S.me.team = p.team;
   loadMap(msg.map);
+  if (S.cfg.br) setupBR(msg.zone, msg.loot); else clearBR();
   hud.show();
   hud.endScreen(false);
   hud.death(false);
@@ -183,6 +184,7 @@ export function exitGame() {
   S.active = false;
   S.killcam = null; S.recBuf = []; S.pendingDeath = null; S.pendingSpawn = null;
   hud.killcam(false); hud.mlgStop();
+  clearBR();
   if (S.meAvatar) { S.scene.remove(S.meAvatar); S.meAvatar = null; }
   clearProjectiles();
   clearWorldFx();
@@ -849,6 +851,75 @@ function clearWorldFx() {
   for (const g of turrets.values()) S.scene.remove(g); turrets.clear();
 }
 
+// ── Battle Royale (client) ───────────────────────────────────────────────────
+let zoneMesh = null, zoneRing = null;
+const lootMeshes = new Map();
+function setupBR(zone, loot) {
+  clearBR();
+  S.zone = zone || null;
+  if (!S.cfg || !S.cfg.br) return;
+  const H = 70;
+  zoneMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, H, 64, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x4bd6ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }));
+  zoneMesh.position.y = H / 2 - 3; zoneMesh.renderOrder = 6; zoneMesh.userData.noAO = true;
+  S.scene.add(zoneMesh);
+  zoneRing = new THREE.Mesh(
+    new THREE.RingGeometry(0.955, 1.0, 96),
+    new THREE.MeshBasicMaterial({ color: 0x9af6ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }));
+  zoneRing.rotation.x = -Math.PI / 2; zoneRing.position.y = 0.12; zoneRing.userData.noAO = true;
+  S.scene.add(zoneRing);
+  applyZone();
+  if (loot) for (const l of loot) spawnLoot(l);
+}
+function applyZone() {
+  if (!zoneMesh || !S.zone) return;
+  const r = Math.max(0.5, S.zone.r);
+  zoneMesh.scale.set(r, 1, r); zoneMesh.position.x = S.zone.cx; zoneMesh.position.z = S.zone.cz;
+  zoneRing.scale.set(r, r, r); zoneRing.position.x = S.zone.cx; zoneRing.position.z = S.zone.cz;
+}
+function spawnLoot(l) {
+  if (lootMeshes.has(l.id)) return;
+  const g = new THREE.Group();
+  g.position.set(l.p[0], l.p[1], l.p[2]);
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 2.2, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x9ff2ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 1.1; beam.userData.noAO = true; g.add(beam);
+  let wm = null;
+  try { wm = buildWeapon(l.w, null, { detail: false, shadows: false }); wm.scale.setScalar(0.7); wm.position.y = 0.6; g.add(wm); } catch { /* arme inconnue */ }
+  g.userData.spin = wm; g.userData.base = l.p[1];
+  S.scene.add(g);
+  lootMeshes.set(l.id, g);
+}
+function removeLoot(id, pickedByMe) {
+  const g = lootMeshes.get(id);
+  if (!g) return;
+  if (pickedByMe) S.effects.ring(g.position.clone().setY(g.position.y + 0.3), 0x7af2ff, 1.1, 0.4);
+  S.scene.remove(g); lootMeshes.delete(id);
+}
+function clearBR() {
+  if (zoneMesh) { S.scene.remove(zoneMesh); zoneMesh.geometry.dispose(); zoneMesh.material.dispose(); zoneMesh = null; }
+  if (zoneRing) { S.scene.remove(zoneRing); zoneRing.geometry.dispose(); zoneRing.material.dispose(); zoneRing = null; }
+  for (const g of lootMeshes.values()) S.scene.remove(g);
+  lootMeshes.clear();
+  S.zone = null;
+  hud.brHide();
+}
+function brAliveCount() { return S.board ? S.board.filter((r) => r[7]).length : 0; }
+function updateBRClient(dt) {
+  if (!S.cfg || !S.cfg.br) return;
+  const t = performance.now() / 1000;
+  for (const g of lootMeshes.values()) {
+    if (g.userData.spin) { g.userData.spin.rotation.y += dt * 1.8; g.userData.spin.position.y = 0.6 + Math.sin(t * 2 + g.position.x) * 0.08; }
+  }
+  if (S.zone && S.me.alive) {
+    const d = Math.hypot(S.me.body.x - S.zone.cx, S.me.body.z - S.zone.cz);
+    hud.zoneWarn(d > S.zone.r);
+  } else hud.zoneWarn(false);
+  hud.brInfo(brAliveCount(), S.zone);
+}
+
 function dirVec(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
 
 function muzzleWorldPos() {
@@ -1256,7 +1327,7 @@ function applySpawn(m) {
   const me = S.me, b = me.body;
   b.x = m.x; b.y = m.y; b.z = m.z; b.vx = b.vy = b.vz = 0; b.crouch = false; b.crouchT = 0; b.onGround = true;
   me.yaw = m.yaw; me.pitch = 0;
-  me.alive = true; me.hp = m.hp; me.spawnSeq = m.seq;
+  me.alive = true; me.eliminated = false; me.hp = m.hp; me.spawnSeq = m.seq;
   me.protectUntil = performance.now() + m.protect * 1000;
   me.punch = 0; me.punchYaw = 0; me.scoped = 0; me.rezoomAt = 0;
   me.gg = m.gg || 0;
@@ -1345,6 +1416,8 @@ function updateHud(dt) {
   } else if (S.cfg.ladder) {
     const lvl = myRow ? myRow[5] : 0;
     hud.setTop(`${lvl + 1}/${GUNGAME_LADDER.length}<small>NIVEAU</small>`, `${esc(WEAPONS[GUNGAME_LADDER[Math.min(lvl + 1, GUNGAME_LADDER.length - 1)]].name)}<small>SUIVANTE</small>`, S.cfg.short);
+  } else if (S.cfg.br) {
+    hud.setTop(`${myRow ? myRow[1] : 0}<small>TES KILLS</small>`, `${brAliveCount()}<small>EN VIE</small>`, `${S.cfg.short} · dernier survivant`);
   } else {
     const best = S.board.reduce((m, r) => Math.max(m, r[1]), 0);
     hud.setTop(`${myRow ? myRow[1] : 0}<small>TOI</small>`, `${best}<small>MEILLEUR</small>`, `${S.cfg.short} · objectif ${S.cfg.killLimit}`);
@@ -1371,7 +1444,10 @@ function updateHud(dt) {
   const pos = me.alive ? me.body : (S.deathPos || me.body);
   drawRadar($('radar'), S.map, { x: pos.x, z: pos.z, yaw: me.yaw }, others, S.cfg.teams);
   // mort
-  if (!me.alive && S.state === 'playing') hud.deathTimer(Math.max(0, (me.respawnAt - performance.now()) / 1000));
+  if (!me.alive && S.state === 'playing') {
+    if (me.eliminated) hud.deathText(`Éliminé — mode spectateur · ${brAliveCount()} survivant(s)`);
+    else hud.deathTimer(Math.max(0, (me.respawnAt - performance.now()) / 1000));
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -1442,6 +1518,7 @@ function loop(t) {
   updateViewmodel(dt);
   updateProjectiles(dt);
   updateWorldFx(dt);
+  updateBRClient(dt);
   S.effects.update(dt);
   updateHud(dt);
   const tr = performance.now();
@@ -1663,7 +1740,8 @@ function setupNet() {
       p.snaps.length = 0; p.alive = false; p.deadT = -1;
     }
     if (m.map !== S.mapId) loadMap(m.map);
-    S.me.alive = false;
+    if (S.cfg.br) setupBR(m.zone, m.loot); else clearBR();
+    S.me.alive = false; S.me.eliminated = false;
     hud.endScreen(false);
     hud.death(false);
     hud.center(`${esc(S.cfg.name)}`, `${esc(MAPS[m.map].name)} — c'est parti !`, 2500);
@@ -1685,6 +1763,7 @@ function setupNet() {
       A.playKill(true);
     }
     giveWeapons(m.list, m.refill);
+    if (m.pickup && WEAPONS[m.pickup]) { hud.center('', `Ramassé : ${esc(WEAPONS[m.pickup].name)}`, 1100, '#7af2ff'); A.playReveal('restricted'); }
   });
   on('correct', (m) => {
     if (!S.active || m.seq !== S.me.spawnSeq) return;
@@ -1747,6 +1826,8 @@ function setupNet() {
   on('smoke', (m) => { if (!S.active) return; if (m.add) spawnSmoke(m); else killSmoke(m.id); });
   on('fire', (m) => { if (!S.active) return; if (m.add) spawnFireArea(m); else killFire(m.id); });
   on('turret', (m) => { if (!S.active) return; if (m.add) spawnTurret(m); else killTurret(m.id); });
+  on('zone', (m) => { if (!S.active || !m.z) return; S.zone = m.z; applyZone(); });
+  on('loot', (m) => { if (!S.active) return; if (m.add === false) removeLoot(m.id, false); });
   on('tfx', (m) => { if (!S.active) return; const tr = turrets.get(m.id); if (tr) { const from = tr.mesh.position.clone().setY(tr.mesh.position.y + 0.55); S.effects.tracer(from, new THREE.Vector3(m.e[0], m.e[1], m.e[2]), 300, 0x6affc0); A.playShot('smg', tr.mesh.position); } });
   on('nadefx', (m) => { const p = S.players.get(m.id); if (p) A.playShot('throw', { x: p.x, y: p.y + 1.4, z: p.z }); });
   on('cfx', (m) => {
@@ -1782,6 +1863,7 @@ function setupNet() {
     const me = S.me;
     me.hp = m.hp;
     hud.damageFlash(m.dmg);
+    if (m.zone) return; // dégâts de zone : pas de son/flinch/direction
     A.playHurt();
     me.flinch += Math.min(0.05, m.dmg * 0.0008);
     // direction de l'attaquant
@@ -1795,8 +1877,9 @@ function setupNet() {
     if (!S.active) return;
     const me = S.me;
     const kw = WEAPONS[m.w];
+    const zoneDeath = m.w === 'zone';
     hud.killfeed({
-      kn: nameOf(m.k), kc: colorOf(m.k), vn: nameOf(m.v), vc: colorOf(m.v), wn: kw ? kw.name : m.w,
+      kn: zoneDeath ? '☁ la zone' : nameOf(m.k), kc: zoneDeath ? '#8fd8ff' : colorOf(m.k), vn: nameOf(m.v), vc: colorOf(m.v), wn: kw ? kw.name : (zoneDeath ? '' : m.w),
       hs: m.hs, ns: m.ns, bs: m.bs, an: m.a ? nameOf(m.a) : null,
     }, m.k === me.id || m.v === me.id);
     const victim = S.players.get(m.v);
@@ -1812,12 +1895,16 @@ function setupNet() {
       me.alive = false;
       me.scoped = 0; hud.scope(0);
       me.respawnAt = performance.now() + S.cfg.respawn * 1000;
+      me.eliminated = !!S.cfg.br;
       S.killer = m.k;
       S.deathPos = new THREE.Vector3(me.body.x, me.body.y + 1.2, me.body.z);
       const kp = S.players.get(m.k);
       const sk = kp && kp.skins[m.w];
+      const place = me.eliminated ? brAliveCount() : 0;
+      const killerLine = zoneDeath ? '☁ Éliminé par la zone'
+        : (m.k === me.id ? 'Suicide' : `Tué par <b style="color:${colorOf(m.k)}">${esc(nameOf(m.k))}</b> avec <b>${esc(kw ? kw.name : m.w)}</b>${m.hs ? ' (headshot)' : ''}${m.k !== me.id ? ` — il lui reste ${m.kh} PV` : ''}`);
       const deathInfo = {
-        killer: m.k === me.id ? 'Suicide' : `Tué par <b style="color:${colorOf(m.k)}">${esc(nameOf(m.k))}</b> avec <b>${esc(kw ? kw.name : m.w)}</b>${m.hs ? ' (headshot)' : ''}${m.k !== me.id ? ` — il lui reste ${m.kh} PV` : ''}`,
+        killer: me.eliminated ? `${killerLine}<br><span style="color:#2ee6c0">${place}ᵉ place — il reste ${place} survivant(s)</span>` : killerLine,
         skin: sk ? `Skin : ${esc(itemFullName(sk))}` : '',
       };
       // killcam (mini-replay) : on diffère le panneau de mort jusqu'à la fin
@@ -1857,7 +1944,8 @@ function setupNet() {
     S.teamScore = m.teamScore;
     S.me.scoped = 0; hud.scope(0);
     let title;
-    if (m.winTeam >= 0) title = `Victoire : ${TEAM_NAMES[m.winTeam]}`;
+    if (S.cfg.br) title = m.winner === S.me.id ? '👑 VICTOIRE ROYALE !' : `Victoire Royale de ${esc(m.winnerName || '?')}`;
+    else if (m.winTeam >= 0) title = `Victoire : ${TEAM_NAMES[m.winTeam]}`;
     else if (m.winTeam === -2) title = 'Égalité';
     else title = m.winner === S.me.id ? 'TU AS GAGNÉ !' : `Victoire de ${esc(m.winnerName || '?')}`;
     const pod = m.top.map((id, i) => `<div><div style="font-size:24px">${['🥇', '🥈', '🥉'][i]}</div><b>${esc(nameOf(id))}</b></div>`).join('');
@@ -1914,6 +2002,8 @@ if (new URLSearchParams(location.search).has('test')) {
     settings() { return settings(); },
     kcManual(v) { S._kcManual = v; },
     mlgPreview() { hud.mlgStart(); hud.mlgText('GET REKT', '360 NO SCOPE'); for (let i = 0; i < 9; i++) hud.mlgFling(MLG_FLY[i % MLG_FLY.length]); hud.mlgFlash('#ff00e6'); },
+    brZone(r) { if (S.zone) { S.zone.r = r; applyZone(); } },
+    brNearestLoot() { let best = null, bd = 1e9; for (const g of lootMeshes.values()) { const d = Math.hypot(g.position.x - S.me.body.x, g.position.z - S.me.body.z); if (d < bd) { bd = d; best = g; } } return best ? { x: best.position.x, y: best.position.y, z: best.position.z } : null; },
     kcRender(prog) { const kc = S.killcam; if (!kc) return false; kc.start = performance.now() - prog * kc.dur * 1000; if (prog < 0.97) kc.finished = false; updateKillcam(0.016); S.pipeline.render(false, 0.016); return true; },
     me() { return S.me; },
     emit(m) { dispatch(m); },
