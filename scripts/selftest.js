@@ -295,12 +295,14 @@ async function grenadeMagicTests() {
   // Bâton de soin
   place(a, 0, 20); a.hp = 40; a.weapons = ['healstaff', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
   room.onCast(a, { w: 'healstaff', o: eye(a), d: [0, 0, -1] });
-  if (a.hp === 64) ok('bâton de soin : +24 PV'); else fail('soin : ' + a.hp + ' PV');
+  const healAmt = W.WEAPONS.healstaff.heal;
+  if (a.hp === 40 + healAmt) ok(`bâton de soin : +${healAmt} PV`); else fail('soin : ' + a.hp + ' PV');
   // Bouclier : absorbe les dégâts
   place(a, 0, 20); a.hp = 100; a.weapons = ['aegis', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
   room.onCast(a, { w: 'aegis', o: eye(a), d: [0, 0, -1] });
+  const shMax = W.WEAPONS.aegis.shield;
   const sh = a.shield; room.damage(a, b, 50, 'usp', false, {});
-  if (sh === 80 && a.hp === 100 && a.shield === 30) ok('bouclier : absorbe 50 dégâts (reste 30 de bouclier, PV intacts)'); else fail(`bouclier : shield ${a.shield}, hp ${a.hp}`);
+  if (sh === shMax && a.hp === 100 && a.shield === shMax - 50) ok(`bouclier : absorbe 50 dégâts (reste ${shMax - 50} de bouclier, PV intacts)`); else fail(`bouclier : shield ${a.shield}, hp ${a.hp}`);
   // Blink : téléportation
   place(a, 0, 20); a.weapons = ['blink', 'usp', 'knife']; a.mana = PLAYER.manaMax; a.lastShot = {};
   const z0 = a.body.z; room.onCast(a, { w: 'blink', o: eye(a), d: [0, 0, -1] });
@@ -310,6 +312,16 @@ async function grenadeMagicTests() {
   room.turrets = []; room.onCast(a, { w: 'totem', o: eye(a), d: [1, 0, 0] });
   const bhp = b.hp; for (let i = 0; i < 120; i++) { fake += 33; room.updateWorldEffects(1 / 30, fake); }
   if (room.turrets.length && b.hp < bhp) ok(`totem : la tourelle tire sur l'ennemi (${bhp} -> ${b.hp} PV)`); else fail(`totem : tourelles ${room.turrets.length}, B ${b.hp}`);
+  // Barre de sorts : un seul bâton principal, mais on peut lancer n'importe quel sort
+  place(a, 0, 20); place(b, 0, 12); a.weapons = ['fireball', 'usp', 'knife']; a.cur = 'fireball'; a.mana = PLAYER.manaMax; a.lastShot = {};
+  const bh0 = b.hp; room.onCast(a, { w: 'chainbolt', o: eye(a), d: [0, 0, -1] }); // sort différent du primary
+  place(b, 0, 12); b.slowUntil = 0; b.slowMul = 1; room.onCast(a, { w: 'frostbeam', o: eye(a), d: [0, 0, -1] });
+  if (b.hp < bh0 && b.slowMul < 1) ok('barre de sorts : chainbolt + frostbeam lancés avec le bâton « fireball »'); else fail(`barre de sorts : hp ${b.hp}, slow ${b.slowMul}`);
+  // un sort hors magie est refusé
+  a.mana = PLAYER.manaMax; const hpBefore = b.hp; room.onCast(a, { w: 'ak47', o: eye(a), d: [0, 0, -1] });
+  if (b.hp === hpBefore) ok('barre de sorts : une arme non-magique est refusée au cast'); else fail('cast non-magique accepté');
+  // mana augmenté
+  if (PLAYER.manaMax >= 200) ok(`mana maximum relevé à ${PLAYER.manaMax}`); else fail('mana max trop faible : ' + PLAYER.manaMax);
 }
 
 // ── Catalogue de skins généré ─────────────────────────────────────────────
