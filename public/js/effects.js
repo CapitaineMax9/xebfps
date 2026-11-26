@@ -181,6 +181,38 @@ export class Effects {
     this.lightT = 0.14;
   }
 
+  // Texture de cercle magique (anneaux concentriques + runes) dessinée une fois
+  _runeTex() {
+    if (this._rtex) return this._rtex;
+    const c = document.createElement('canvas'); c.width = c.height = 256;
+    const x = c.getContext('2d'); x.translate(128, 128);
+    x.strokeStyle = '#fff'; x.fillStyle = '#fff';
+    x.lineWidth = 3;
+    for (const rr of [122, 106, 72]) { x.beginPath(); x.arc(0, 0, rr, 0, Math.PI * 2); x.stroke(); }
+    x.lineWidth = 4; // graduations runiques
+    for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; x.beginPath(); x.moveTo(Math.cos(a) * 106, Math.sin(a) * 106); x.lineTo(Math.cos(a) * 122, Math.sin(a) * 122); x.stroke(); }
+    x.lineWidth = 3; // glyphes sur l'anneau médian
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; x.save(); x.translate(Math.cos(a) * 89, Math.sin(a) * 89); x.rotate(a); x.strokeRect(-8, -8, 16, 16); x.beginPath(); x.moveTo(-8, 0); x.lineTo(8, 0); x.stroke(); x.restore(); }
+    // hexagramme central
+    x.lineWidth = 3;
+    for (let s = 0; s < 2; s++) { x.beginPath(); for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + s * Math.PI / 3 - Math.PI / 2; const px = Math.cos(a) * 58, py = Math.sin(a) * 58; i ? x.lineTo(px, py) : x.moveTo(px, py); } x.closePath(); x.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    this._rtex = t; return t;
+  }
+
+  // Cercle magique runique (style mods Minecraft) : s'étend, tourne et s'estompe
+  magicCircle(pos, color = 0x9bd1ff, { r = 1.1, dur = 0.7, up = false, dir = null, spin = 5 } = {}) {
+    const mat = new THREE.MeshBasicMaterial({ map: this._runeTex(), color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const m = new THREE.Mesh(this._planeGeo || (this._planeGeo = new THREE.PlaneGeometry(1, 1)), mat);
+    m.position.copy(pos);
+    if (up) m.rotation.x = -Math.PI / 2;
+    else if (dir) m.lookAt(pos.clone().add(dir));
+    m.scale.setScalar(0.25 * r);
+    this.group.add(m);
+    this.circles = this.circles || [];
+    this.circles.push({ m, t: 0, dur, r, spin, up });
+  }
+
   // Anneau de choc qui s'étend puis s'estompe (AoE, soin, bouclier, impacts)
   ring(pos, color = 0x9bd1ff, maxR = 1, life = 0.4) {
     const geo = new THREE.RingGeometry(0.4, 0.5, 28);
@@ -224,6 +256,18 @@ export class Effects {
         if (r.t >= r.life) { this.group.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); this.rings.splice(i, 1); }
       }
     }
+    if (this.circles) {
+      for (let i = this.circles.length - 1; i >= 0; i--) {
+        const c = this.circles[i];
+        c.t += dt;
+        const k = c.t / c.dur;
+        const s = c.r * (0.25 + 0.9 * Math.min(1, k * 1.8));
+        c.m.scale.set(s, s, s);
+        c.m.material.opacity = Math.max(0, 0.95 * (1 - k * k));
+        if (c.up) c.m.rotation.z += c.spin * dt; else c.m.rotateZ(c.spin * dt);
+        if (c.t >= c.dur) { this.group.remove(c.m); c.m.material.dispose(); this.circles.splice(i, 1); }
+      }
+    }
     if (this.beams) {
       for (let i = this.beams.length - 1; i >= 0; i--) {
         const b = this.beams[i];
@@ -241,6 +285,7 @@ export class Effects {
     for (const p of this.particles) this.group.remove(p.s);
     for (const d of this.decals) this.group.remove(d);
     if (this.rings) { for (const r of this.rings) { this.group.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); } this.rings = []; }
+    if (this.circles) { for (const c of this.circles) { this.group.remove(c.m); c.m.material.dispose(); } this.circles = []; }
     this.tracers = []; this.particles = []; this.decals = [];
   }
 }

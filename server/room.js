@@ -898,6 +898,9 @@ export class Room {
     const fx = o[0] + dx * 2.2, fz = o[2] + dz * 2.2, fy = o[1];
     const down = raycastMap(this.map.boxes, fx, fy, fz, 0, -1, 0, 4);
     const gy = down.t < 4 ? fy - down.t + 0.01 : p.body.y;
+    // une seule tourelle par joueur : on retire l'ancienne
+    for (const tr of this.turrets) { if (tr.owner === p && !tr.dead) { tr.dead = true; this.broadcast({ t: 'turret', id: tr.id, add: false }); } }
+    if (this.turrets.some((x) => x.dead)) this.turrets = this.turrets.filter((x) => !x.dead);
     const id = ++this.fxSeq;
     this.turrets.push({ id, owner: p, x: fx, y: gy, z: fz, until: now() + w.turret.life, nextFire: now() + 500, def: w.turret });
     this.broadcast({ t: 'turret', id, by: p.id, p: [fx, gy, fz].map((v) => +v.toFixed(2)), add: true });

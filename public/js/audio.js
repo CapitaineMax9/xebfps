@@ -144,6 +144,30 @@ export function playFlashbang(pos = null, intensity = 1) {
 
 export function playFireLoop() { /* le feu utilise des particules, pas de boucle audio dédiée */ }
 
+// ── Sons MLG (meme) ──────────────────────────────────────────────────────────
+export function playAirhorn() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(null, 0.7);
+  // deux klaxons type corne de brume
+  for (const off of [0, 0.42]) {
+    for (const f of [320, 404, 505]) tone(d, t + off, 0.34, { freq: f, gain: 0.3, type: 'sawtooth', attack: 0.01 });
+    noise(d, t + off, 0.34, { freq: 1800, type: 'bandpass', q: 0.8, gain: 0.08 });
+  }
+}
+
+export function playMlgDrop() {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const d = out(null, 0.8);
+  // montée puis gros drop basse
+  tone(d, t, 0.35, { freq: 220, freqEnd: 1100, gain: 0.25, type: 'square', attack: 0.02 });
+  tone(d, t + 0.35, 0.6, { freq: 70, freqEnd: 42, gain: 0.9, type: 'sine' });
+  tone(d, t + 0.35, 0.5, { freq: 110, freqEnd: 55, gain: 0.4, type: 'sawtooth' });
+  noise(d, t + 0.35, 0.3, { freq: 200, freqEnd: 60, gain: 0.5, type: 'lowpass', attack: 0.005 });
+  for (let i = 0; i < 3; i++) tone(d, t + 0.35 + i * 0.16, 0.14, { freq: 60, gain: 0.5, type: 'square' });
+}
+
 export function playSaber(pos = null, swing = false) {
   if (!ctx) return;
   const t = ctx.currentTime;

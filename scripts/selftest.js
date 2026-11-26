@@ -312,6 +312,11 @@ async function grenadeMagicTests() {
   room.turrets = []; room.onCast(a, { w: 'totem', o: eye(a), d: [1, 0, 0] });
   const bhp = b.hp; for (let i = 0; i < 120; i++) { fake += 33; room.updateWorldEffects(1 / 30, fake); }
   if (room.turrets.length && b.hp < bhp) ok(`totem : la tourelle tire sur l'ennemi (${bhp} -> ${b.hp} PV)`); else fail(`totem : tourelles ${room.turrets.length}, B ${b.hp}`);
+  // une seule tourelle par joueur : reposer en remplace l'ancienne
+  a.lastShot = {}; a.mana = PLAYER.manaMax; room.onCast(a, { w: 'totem', o: eye(a), d: [1, 0, 0] });
+  a.lastShot = {}; a.mana = PLAYER.manaMax; room.onCast(a, { w: 'totem', o: eye(a), d: [-1, 0, 0] });
+  const mine = room.turrets.filter((tr) => tr.owner === a && !tr.dead).length;
+  if (mine === 1) ok('totem : une seule tourelle par joueur (la nouvelle remplace l\'ancienne)'); else fail(`totem : ${mine} tourelles pour un joueur`);
   // Barre de sorts : un seul bâton principal, mais on peut lancer n'importe quel sort
   place(a, 0, 20); place(b, 0, 12); a.weapons = ['fireball', 'usp', 'knife']; a.cur = 'fireball'; a.mana = PLAYER.manaMax; a.lastShot = {};
   const bh0 = b.hp; room.onCast(a, { w: 'chainbolt', o: eye(a), d: [0, 0, -1] }); // sort différent du primary
