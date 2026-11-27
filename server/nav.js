@@ -2,16 +2,16 @@
 import { collides } from '../shared/physics.js';
 import { PLAYER } from '../shared/constants.js';
 
-const CELL = 1.0;
-
 export class NavGrid {
   constructor(map) {
     this.map = map;
     const [sx, sz] = map.size;
+    const maxDim = Math.max(sx, sz);
+    this.cell = maxDim > 600 ? 5 : (maxDim > 300 ? 2 : 1); // grandes maps : cellules plus larges pour garder la nav rapide
     this.ox = -sx / 2;
     this.oz = -sz / 2;
-    this.w = Math.floor(sx / CELL);
-    this.h = Math.floor(sz / CELL);
+    this.w = Math.floor(sx / this.cell);
+    this.h = Math.floor(sz / this.cell);
     const n = this.w * this.h;
     this.walk = new Uint8Array(n);
     this.y = new Float32Array(n);
@@ -21,7 +21,7 @@ export class NavGrid {
     PLAYER.halfWidth = saved + 0.18;
     for (let j = 0; j < this.h; j++) {
       for (let i = 0; i < this.w; i++) {
-        const x = this.ox + (i + 0.5) * CELL, z = this.oz + (j + 0.5) * CELL;
+        const x = this.ox + (i + 0.5) * this.cell, z = this.oz + (j + 0.5) * this.cell;
         const k = j * this.w + i;
         // On cherche la surface la plus haute (< 3m) praticable à cet endroit
         let gy = 0;
@@ -54,14 +54,14 @@ export class NavGrid {
   }
 
   idx(x, z) {
-    const i = Math.floor((x - this.ox) / CELL), j = Math.floor((z - this.oz) / CELL);
+    const i = Math.floor((x - this.ox) / this.cell), j = Math.floor((z - this.oz) / this.cell);
     if (i < 0 || j < 0 || i >= this.w || j >= this.h) return -1;
     return j * this.w + i;
   }
 
   center(k) {
     const i = k % this.w, j = (k / this.w) | 0;
-    return [this.ox + (i + 0.5) * CELL, this.oz + (j + 0.5) * CELL];
+    return [this.ox + (i + 0.5) * this.cell, this.oz + (j + 0.5) * this.cell];
   }
 
   // Voisins praticables (8 directions, en respectant les marches de 0.52m)
@@ -92,7 +92,7 @@ export class NavGrid {
     let k = this.idx(x, z);
     if (k >= 0 && this.walk[k]) return k;
     let best = -1, bd = Infinity;
-    const ci = Math.floor((x - this.ox) / CELL), cj = Math.floor((z - this.oz) / CELL);
+    const ci = Math.floor((x - this.ox) / this.cell), cj = Math.floor((z - this.oz) / this.cell);
     for (let r = 1; r <= 4 && best < 0; r++) {
       for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
         const ii = ci + di, jj = cj + dj;

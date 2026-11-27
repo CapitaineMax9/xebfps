@@ -1,7 +1,7 @@
 // Boucle de jeu côté client.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { WEAPONS, recoilOffset, currentSpread, spreadDir, dirFromAngles, weaponSpeed, PRIMARIES, SECONDARIES, MELEES, MAGIC, GRENADES, GRENADE_STOCK } from '/shared/weapons.js';
+import { WEAPONS, recoilOffset, currentSpread, spreadDir, dirFromAngles, weaponSpeed, PRIMARIES, SECONDARIES, MELEES, MAGIC, GRENADES, GRENADE_STOCK, BR_RARITIES } from '/shared/weapons.js';
 import { MAPS } from '/shared/maps.js';
 import { MODES, GUNGAME_LADDER } from '/shared/modes.js';
 import { PLAYER, INTERP_DELAY, CLIENT_SEND_RATE, TEAM_NAMES, TEAM_COLORS } from '/shared/constants.js';
@@ -143,7 +143,7 @@ function newMe(id) {
     inspectT: -1, stepAcc: 0, wasGround: true, team: -1, gg: 0, punch: 0, punchYaw: 0,
     kills: 0, deaths: 0, respawnAt: 0, flinch: 0,
     mana: PLAYER.manaMax, manaMax: PLAYER.manaMax, nades: {}, curNade: 'he',
-    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0, curSpell: null, eliminated: false,
+    slowUntil: 0, slowMul: 1, shield: 0, nextCast: 0, nextThrow: 0, curSpell: null, eliminated: false, wrar: {},
   };
 }
 
@@ -882,17 +882,22 @@ function applyZone() {
   zoneMesh.scale.set(r, 1, r); zoneMesh.position.x = S.zone.cx; zoneMesh.position.z = S.zone.cz;
   zoneRing.scale.set(r, r, r); zoneRing.position.x = S.zone.cx; zoneRing.position.z = S.zone.cz;
 }
+function lootColor(r) { const rar = BR_RARITIES[r] || BR_RARITIES[0]; return new THREE.Color(rar.color); }
 function spawnLoot(l) {
   if (lootMeshes.has(l.id)) return;
   const g = new THREE.Group();
   g.position.set(l.p[0], l.p[1], l.p[2]);
+  const col = lootColor(l.r || 0);
   const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.16, 2.2, 10, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x9ff2ff, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  beam.position.y = 1.1; beam.userData.noAO = true; g.add(beam);
+    new THREE.CylinderGeometry(0.17, 0.17, 2.4, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 1.2; beam.userData.noAO = true; g.add(beam);
+  // socle lumineux au sol (anneau coloré)
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.42, 20), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; ring.userData.noAO = true; g.add(ring);
   let wm = null;
   try { wm = buildWeapon(l.w, null, { detail: false, shadows: false }); wm.scale.setScalar(0.7); wm.position.y = 0.6; g.add(wm); } catch { /* arme inconnue */ }
-  g.userData.spin = wm; g.userData.base = l.p[1];
+  g.userData.spin = wm; g.userData.base = l.p[1]; g.userData.rar = l.r || 0;
   S.scene.add(g);
   lootMeshes.set(l.id, g);
 }
@@ -900,7 +905,7 @@ function removeLoot(id, pickedByMe) {
   if (lootQueue.length) { const qi = lootQueue.findIndex((l) => l.id === id); if (qi >= 0) lootQueue.splice(qi, 1); }
   const g = lootMeshes.get(id);
   if (!g) return;
-  if (pickedByMe) S.effects.ring(g.position.clone().setY(g.position.y + 0.3), 0x7af2ff, 1.1, 0.4);
+  if (pickedByMe) S.effects.ring(g.position.clone().setY(g.position.y + 0.3), lootColor(g.userData.rar || 0).getHex(), 1.2, 0.45);
   S.scene.remove(g); disposeLootGroup(g); lootMeshes.delete(id);
 }
 function clearBR() {
@@ -1335,7 +1340,7 @@ function applySpawn(m) {
   const me = S.me, b = me.body;
   b.x = m.x; b.y = m.y; b.z = m.z; b.vx = b.vy = b.vz = 0; b.crouch = false; b.crouchT = 0; b.onGround = true;
   me.yaw = m.yaw; me.pitch = 0;
-  me.alive = true; me.eliminated = false; me.hp = m.hp; me.spawnSeq = m.seq;
+  me.alive = true; me.eliminated = false; me.hp = m.hp; me.spawnSeq = m.seq; me.wrar = {};
   me.protectUntil = performance.now() + m.protect * 1000;
   me.punch = 0; me.punchYaw = 0; me.scoped = 0; me.rezoomAt = 0;
   me.gg = m.gg || 0;
@@ -1408,7 +1413,8 @@ function updateHud(dt) {
   const isMagic = me.alive && WEAPONS[me.cur] && WEAPONS[me.cur].kind === 'magic';
   // en magie, le nom affiché est celui du sort actif
   const dispId = isMagic && MAGIC.includes(me.curSpell) ? me.curSpell : me.cur;
-  hud.setAmmo(dispId, a.mag, a.res, me.weapons, me.cur);
+  const rarCol = (me.wrar && me.wrar[me.cur] !== undefined && BR_RARITIES[me.wrar[me.cur]]) ? BR_RARITIES[me.wrar[me.cur]].color : null;
+  hud.setAmmo(dispId, a.mag, a.res, me.weapons, me.cur, rarCol);
   hud.setMana(me.mana, me.manaMax, isMagic);
   hud.setShield(me.alive ? me.shield : 0);
   if (me.alive && me.nades && Object.keys(me.nades).length) refreshNadeBelt(); else hud.nades([]);
@@ -1775,7 +1781,12 @@ function setupNet() {
       A.playKill(true);
     }
     giveWeapons(m.list, m.refill);
-    if (m.pickup && WEAPONS[m.pickup]) { hud.center('', `Ramassé : ${esc(WEAPONS[m.pickup].name)}`, 1100, '#7af2ff'); A.playReveal('restricted'); }
+    if (m.pickup && WEAPONS[m.pickup]) {
+      const rar = BR_RARITIES[m.rar] || BR_RARITIES[0];
+      if (m.rar !== undefined) { S.me.wrar = S.me.wrar || {}; S.me.wrar[m.pickup] = m.rar; }
+      hud.center('', `${esc(WEAPONS[m.pickup].name)} <b style="color:${rar.color}">${esc(rar.name)}</b>`, 1300, rar.color);
+      A.playReveal(m.rar >= 3 ? 'covert' : m.rar >= 1 ? 'restricted' : 'milspec');
+    }
   });
   on('correct', (m) => {
     if (!S.active || m.seq !== S.me.spawnSeq) return;

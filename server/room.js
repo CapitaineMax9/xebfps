@@ -2,7 +2,7 @@
 import { TICK_RATE, SNAPSHOT_RATE, MAX_REWIND, PLAYER, CREDITS } from '../shared/constants.js';
 import { MAPS } from '../shared/maps.js';
 import { MODES, ggLevelWeapon, GUNGAME_LADDER } from '../shared/modes.js';
-import { WEAPONS, PRIMARIES, SECONDARIES, MELEES, MAGIC, GRENADES, GRENADE_STOCK, minFireDelay } from '../shared/weapons.js';
+import { WEAPONS, PRIMARIES, SECONDARIES, MELEES, MAGIC, GRENADES, GRENADE_STOCK, BR_RARITIES, pickBrRarity, minFireDelay } from '../shared/weapons.js';
 import { SKINS } from '../shared/skins.js';
 import { raycastMap, rayPlayer, lineOfSight, HIT_HEAD, HIT_MULT } from '../shared/raycast.js';
 import { createBody, eyeHeight, collides } from '../shared/physics.js';
@@ -411,6 +411,7 @@ export class Room {
     p.nades = this.cfg.choice ? { ...GRENADE_STOCK } : {};
     p.weapons = this.weaponsFor(p);
     p.cur = p.weapons[0];
+    p.wmul = {}; p.wrar = {}; // raretés du loot remises à zéro
     p.history.length = 0;
     if (p.brain) p.brain.onSpawn();
     p.eliminated = false;
@@ -437,7 +438,9 @@ export class Room {
     this.loot = []; this.lootSeq = 0;
     const nav = this.nav;
     if (!nav.walkList.length) return;
-    const count = Math.max(16, Math.min(44, Math.floor(nav.walkList.length / 32)));
+    // densité selon la surface praticable réelle (indépendante de la taille de cellule)
+    const area = nav.walkList.length * nav.cell * nav.cell;
+    const count = Math.max(24, Math.min(170, Math.round(area / 9000)));
     const used = new Set();
     for (let i = 0; i < count; i++) {
       let k = nav.randomNode(), tries = 0;
@@ -446,12 +449,12 @@ export class Room {
       const [x, z] = nav.center(k);
       const y = (nav.y && nav.y[k]) || 0;
       const wid = BR_LOOT_POOL[Math.floor(Math.random() * BR_LOOT_POOL.length)];
-      this.loot.push({ id: ++this.lootSeq, wid, x, y, z });
+      this.loot.push({ id: ++this.lootSeq, wid, r: pickBrRarity(), x, y, z });
     }
   }
-  lootMsg() { return this.loot.map((l) => ({ id: l.id, w: l.wid, p: [+l.x.toFixed(2), +l.y.toFixed(2), +l.z.toFixed(2)] })); }
+  lootMsg() { return this.loot.map((l) => ({ id: l.id, w: l.wid, r: l.r, p: [+l.x.toFixed(2), +l.y.toFixed(2), +l.z.toFixed(2)] })); }
 
-  giveLoot(p, wid) {
+  giveLoot(p, wid, rarity) {
     const w = WEAPONS[wid];
     if (!w) return;
     if (!p.weapons.includes(wid)) {
@@ -459,8 +462,13 @@ export class Room {
       const above = p.weapons.filter((x) => WEAPONS[x].slot >= w.slot);
       p.weapons = [...below, wid, ...above];
     }
+    // rareté : on garde la meilleure obtenue pour cette arme (multiplie les dégâts)
+    const rar = BR_RARITIES[rarity] ? rarity : 0;
+    if (!p.wmul) p.wmul = {};
+    if (!p.wrar) p.wrar = {};
+    if (!(p.wrar[wid] >= 0) || rar > p.wrar[wid]) { p.wrar[wid] = rar; p.wmul[wid] = BR_RARITIES[rar].dmg; }
     p.cur = wid;
-    p.send({ t: 'weapons', list: p.weapons, refill: true, pickup: wid });
+    p.send({ t: 'weapons', list: p.weapons, refill: true, pickup: wid, rar: p.wrar[wid] });
   }
 
   zoneDamage(p, amount) {
@@ -513,7 +521,7 @@ export class Room {
         for (let i = this.loot.length - 1; i >= 0; i--) {
           const l = this.loot[i];
           if (Math.hypot(p.body.x - l.x, p.body.z - l.z) < 1.5 && Math.abs(p.body.y - l.y) < 2.5) {
-            this.giveLoot(p, l.wid);
+            this.giveLoot(p, l.wid, l.r);
             this.loot.splice(i, 1);
             this.broadcast({ t: 'loot', id: l.id, add: false });
           }
@@ -1082,6 +1090,8 @@ export class Room {
 
   damage(q, attacker, amount, wid, hs, extra = {}) {
     if (!q.alive || amount <= 0) return;
+    // rareté du loot BR : multiplie les dégâts de l'arme ramassée
+    if (attacker && attacker.wmul && attacker.wmul[wid]) amount *= attacker.wmul[wid];
     if (q.cheats && q.cheats.god && q !== attacker) return;
     // bouclier arcanique : absorbe les dégâts
     if (q.shield > 0 && now() < q.shieldUntil) {

@@ -889,34 +889,54 @@ function shade(hex, amt) {
 // ── Usure ──────────────────────────────────────────────────────────────────
 function applyWear(ctx, float, rnd) {
   if (float <= 0.02) return;
-  // éraflures
-  const n = Math.floor(float * 420);
+  // teinte métal nu (acier légèrement bleuté)
+  const metal = () => `rgba(${165 + rnd() * 55 | 0},${168 + rnd() * 55 | 0},${176 + rnd() * 55 | 0},`;
   ctx.lineCap = 'round';
+  // éraflures (plus nombreuses, mélange métal clair / rayures sombres)
+  const n = Math.floor(float * 640) + 24;
   for (let i = 0; i < n; i++) {
-    const x = rnd() * SIZE, y = rnd() * SIZE, a = rnd() * Math.PI, l = 4 + rnd() * 26 * float + 4;
-    ctx.strokeStyle = `rgba(${150 + rnd() * 60},${150 + rnd() * 60},${155 + rnd() * 60},${0.25 + rnd() * 0.5})`;
-    ctx.lineWidth = 0.6 + rnd() * 1.6;
+    const x = rnd() * SIZE, y = rnd() * SIZE, a = rnd() * Math.PI, l = 4 + rnd() * 34 * float + 4;
+    const dark = rnd() < 0.3;
+    ctx.strokeStyle = dark ? `rgba(28,24,20,${0.18 + rnd() * 0.4})` : metal() + `${0.25 + rnd() * 0.55})`;
+    ctx.lineWidth = 0.5 + rnd() * 2.1;
     ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke();
   }
-  // perte de peinture (taches de métal)
-  if (float > 0.15) {
+  // perte de peinture : taches de métal, seuil plus bas + usure accentuée sur les bords
+  if (float > 0.1) {
     const ns = [makeNoise(rnd, 8), makeNoise(rnd, 16), makeNoise(rnd, 32)];
-    const thr = (float - 0.15) * 0.55;
-    const c = document.createElement('canvas');
-    c.width = c.height = 128;
-    const cx = c.getContext('2d');
-    const img = cx.createImageData(128, 128);
-    for (let y = 0; y < 128; y++) for (let x = 0; x < 128; x++) {
-      const v = fbm(ns, x / 128 * 8, y / 128 * 8, 3);
-      const k = (y * 128 + x) * 4;
-      const a = v < thr + 0.25 ? Math.min(1, (thr + 0.25 - v) * 12) : 0;
-      img.data[k] = 120 + v * 60; img.data[k + 1] = 122 + v * 60; img.data[k + 2] = 128 + v * 60; img.data[k + 3] = a * 255;
+    const thr = (float - 0.1) * 0.8;
+    const RES = 160;
+    const c = document.createElement('canvas'); c.width = c.height = RES;
+    const cx = c.getContext('2d'); const img = cx.createImageData(RES, RES);
+    for (let y = 0; y < RES; y++) for (let x = 0; x < RES; x++) {
+      const ex = Math.min(x, RES - x) / RES, ey = Math.min(y, RES - y) / RES;
+      const edge = 1 - Math.min(1, Math.min(ex, ey) * 3.2); // 1 au bord → 0 au centre (les bords s'usent plus)
+      const v = fbm(ns, x / RES * 8, y / RES * 8, 3) - edge * 0.32 * float;
+      const k = (y * RES + x) * 4;
+      const a = v < thr + 0.22 ? Math.min(1, (thr + 0.22 - v) * 11) : 0;
+      img.data[k] = 150 + v * 70; img.data[k + 1] = 153 + v * 70; img.data[k + 2] = 163 + v * 70; img.data[k + 3] = a * 255;
     }
     cx.putImageData(img, 0, 0);
     ctx.drawImage(c, 0, 0, SIZE, SIZE);
   }
-  // salissure générale
-  ctx.fillStyle = `rgba(40,32,24,${float * 0.25})`;
+  // éclats de peinture : petits points de métal nu (battle-scarred)
+  if (float > 0.3) {
+    const chips = Math.floor((float - 0.3) * 320);
+    for (let i = 0; i < chips; i++) { const x = rnd() * SIZE, y = rnd() * SIZE, s = 1 + rnd() * 3; ctx.fillStyle = metal() + `${0.4 + rnd() * 0.5})`; ctx.fillRect(x, y, s, s); }
+  }
+  // usure de bord marquée : métal rongé sur le pourtour (coins de l'arme)
+  if (float > 0.2) {
+    const bw = 10 + float * 28, edges = Math.floor(120 * float);
+    for (let e = 0; e < edges; e++) {
+      const side = Math.floor(rnd() * 4); let x, y;
+      if (side === 0) { x = rnd() * SIZE; y = rnd() * bw; } else if (side === 1) { x = rnd() * SIZE; y = SIZE - rnd() * bw; }
+      else if (side === 2) { x = rnd() * bw; y = rnd() * SIZE; } else { x = SIZE - rnd() * bw; y = rnd() * SIZE; }
+      ctx.fillStyle = metal() + `${0.3 + rnd() * 0.45})`;
+      ctx.beginPath(); ctx.arc(x, y, 1 + rnd() * 3.2, 0, 7); ctx.fill();
+    }
+  }
+  // salissure / crasse générale
+  ctx.fillStyle = `rgba(35,28,20,${float * 0.28})`;
   ctx.fillRect(0, 0, SIZE, SIZE);
 }
 

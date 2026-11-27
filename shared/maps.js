@@ -228,61 +228,76 @@ const duel = build({
 });
 
 // ---------------------------------------------------------------------------
-// ROYAUME — grande carte verte ouverte avec plusieurs zones (pensée Battle Royale)
+// ROYAUME — immense carte verte (1200×1200) parsemée de maisons, forts,
+// entrepôts et cachettes générés — pensée Battle Royale façon Fortnite.
 // ---------------------------------------------------------------------------
+// Points d'apparition étalés (anneaux) — réutilisés pour dégager les POI.
+const R_FFA = [];
+for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; R_FFA.push([Math.round(Math.cos(a) * 540), Math.round(Math.sin(a) * 540)]); }
+for (let i = 0; i < 8; i++) { const a = (i + 0.5) / 8 * Math.PI * 2; R_FFA.push([Math.round(Math.cos(a) * 300), Math.round(Math.sin(a) * 300)]); }
+const R_T0 = [[-360, -545], [-240, -555], [-120, -545], [0, -558], [120, -545], [240, -555], [360, -545]];
+const R_T1 = [[-360, 545], [-240, 555], [-120, 545], [0, 558], [120, 545], [240, 555], [360, 545]];
+const R_ALL = [...R_FFA, ...R_T0, ...R_T1];
 const royaume = build({
-  id: 'royaume', name: 'Royaume', size: [150, 150], wallHeight: 11, outerMat: 'wall2',
-  theme: { sky: ['#8fc0ea', '#cfe8b0'], fog: '#cfe4c2', fogNear: 80, fogFar: 230, sun: '#fff6e0', floor: 'grass', ambient: 0.82 },
+  id: 'royaume', name: 'Royaume', size: [1200, 1200], wallHeight: 16, outerMat: 'wall2',
+  theme: { sky: ['#8fc0ea', '#cfe8b0'], fog: '#cfe4c2', fogNear: 120, fogFar: 520, sun: '#fff6e0', floor: 'grass', ambient: 0.85 },
   build: ({ block, crate, stairs, B, barrel }) => {
-    // ── Donjon central (point haut) ──
-    B(-9, 0, -9, 9, 2, 9, 'stone');
-    stairs(-9, 0, '-x', 5, 4, 0.5, 1.1);
-    stairs(9, 0, '+x', 5, 4, 0.5, 1.1);
-    block(-4, -4, 4, 4, 9, 'wall');       // tour
-    B(-5, 2, -5, 5, 2.4, 5, 'stone');
-    crate(-6.5, -6.5, 1.2, 1.2, 'crate2', 2); crate(6.5, 6.5, 1.2, 1.2, 'crate2', 2);
-    // ── Village (nord-est) : maisons avec rues ──
-    for (const [hx, hz, w, d, h] of [[34, -46, 9, 8, 6], [46, -40, 8, 9, 7], [30, -34, 7, 7, 5], [48, -54, 9, 7, 6], [38, -58, 7, 8, 5]]) {
-      block(hx - w / 2, hz - d / 2, hx + w / 2, hz + d / 2, h, 'wall');
-    }
-    crate(40, -46, 1.4); crate(36, -40, 1.2, 1.2, 'crate2'); barrel(44, -48); barrel(45, -47.2);
-    // ── Fort (nord-ouest) : enceinte carrée avec tours d'angle et entrée ──
-    for (const [ax, az] of [[-52, -52], [-28, -52], [-52, -28], [-28, -28]]) block(ax - 2, az - 2, ax + 2, az + 2, 8, 'stone');
-    B(-52, 0, -52, -34, 3, -50, 'stone'); B(-30, 0, -52, -28, 3, -50 + 0, 'stone'); // mur nord (entrée au milieu)
-    B(-52, 0, -30, -50, 3, -28, 'stone'); B(-52, 0, -52, -50, 3, -42, 'stone');
-    B(-30, 0, -52, -28, 3, -42, 'stone'); B(-30, 0, -34, -28, 3, -28, 'stone');
-    B(-52, 0, -30, -42, 3, -28, 'stone'); B(-38, 0, -30, -28, 3, -28, 'stone');
-    crate(-40, -40, 2, 2); crate(-44, -36, 1.2); stairs(-40, -46, '+z', 4, 3, 0.6, 1.0, 'stone');
-    // ── Entrepôt (sud-est) : conteneurs empilés ──
+    // RNG déterministe (identique client/serveur) pour la génération des POI
+    let s = 0x1a2b3c4d >>> 0;
+    const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
     const cc = ['container_r', 'container_b', 'container_g', 'container_y'];
-    let ci = 0;
-    for (const [cx, cz, rot] of [[34, 40, 0], [34, 46, 0], [42, 43, 1], [48, 40, 0], [40, 52, 1], [30, 48, 0]]) {
-      const m = cc[ci++ % 4];
-      if (rot) B(cx - 3, 0, cz - 1.2, cx + 3, 2.6, cz + 1.2, m); else B(cx - 1.2, 0, cz - 3, cx + 1.2, 2.6, cz + 3, m);
+    // maison enterrable : 4 murs + une ouverture (porte) + couverture intérieure
+    const house = (cx, cz) => {
+      const w = ri(9, 15), d = ri(9, 15), h = ri(5, 8), door = ri(0, 3), t = 0.5;
+      // murs avec une ouverture de 3,2 m sur un côté
+      const seg = (x0, z0, x1, z1) => block(cx + x0, cz + z0, cx + x1, cz + z1, h, 'wall');
+      if (door === 0) { seg(-w / 2, -d / 2, -1.6, -d / 2 + t); seg(1.6, -d / 2, w / 2, -d / 2 + t); } else seg(-w / 2, -d / 2, w / 2, -d / 2 + t);
+      if (door === 1) { seg(-w / 2, d / 2 - t, -1.6, d / 2); seg(1.6, d / 2 - t, w / 2, d / 2); } else seg(-w / 2, d / 2 - t, w / 2, d / 2);
+      if (door === 2) { seg(-w / 2, -d / 2, -w / 2 + t, -1.6); seg(-w / 2, 1.6, -w / 2 + t, d / 2); } else seg(-w / 2, -d / 2, -w / 2 + t, d / 2);
+      if (door === 3) { seg(w / 2 - t, -d / 2, w / 2, -1.6); seg(w / 2 - t, 1.6, w / 2, d / 2); } else seg(w / 2 - t, -d / 2, w / 2, d / 2);
+      crate(cx + ri(-2, 2), cz + ri(-2, 2), 1.3, 1.3, rnd() < 0.5 ? 'crate' : 'crate2');
+      if (rnd() < 0.5) { B(cx - w / 2, h, cz - d / 2, cx + w / 2, h + 0.4, cz + d / 2, 'wall'); } // toit sur certaines
+    };
+    const fort = (cx, cz) => {
+      for (const [ax, az] of [[-13, -13], [13, -13], [-13, 13], [13, 13]]) block(cx + ax - 2.5, cz + az - 2.5, cx + ax + 2.5, cz + az + 2.5, ri(8, 11), 'stone');
+      const wall = (x0, z0, x1, z1) => B(cx + x0, 0, cz + z0, cx + x1, 3.4, cz + z1, 'stone');
+      wall(-13, -13, -3, -11); wall(3, -13, 13, -11);     // mur nord (entrée)
+      wall(-13, 11, 13, 13); wall(-13, -13, -11, 13); wall(11, -13, 13, 13);
+      crate(cx, cz, 2.4, 2.4); crate(cx + 5, cz - 4, 1.3); stairs(cx, cz - 9, '+z', 4, 3, 0.6, 1.0, 'stone');
+    };
+    const warehouse = (cx, cz) => {
+      let ci = ri(0, 3);
+      for (let i = 0; i < ri(5, 8); i++) { const ox = ri(-11, 11), oz = ri(-9, 9), rot = rnd() < 0.5; const m = cc[ci++ % 4]; if (rot) B(cx + ox - 3, 0, cz + oz - 1.3, cx + ox + 3, 2.6, cz + oz + 1.3, m); else B(cx + ox - 1.3, 0, cz + oz - 3, cx + ox + 1.3, 2.6, cz + oz + 3, m); }
+      B(cx - 3, 2.6, cz - 1.3, cx + 3, 5.2, cz + 1.3, cc[ci % 4]);
+    };
+    const camp = (cx, cz) => {
+      for (let i = 0; i < ri(3, 6); i++) crate(cx + ri(-8, 8), cz + ri(-8, 8), 1 + rnd() * 1.4, 1 + rnd() * 1.4, rnd() < 0.5 ? 'crate' : 'crate2');
+      B(cx - 9, 0, cz - 3, cx - 8.2, 1.1, cz + 3, 'sandbag'); B(cx + 8.2, 0, cz - 3, cx + 9, 1.1, cz + 3, 'sandbag');
+      barrel(cx + 4, cz + 4); barrel(cx + 4.8, cz + 4.7);
+    };
+    const rocks = (cx, cz) => { for (let i = 0; i < ri(3, 6); i++) crate(cx + ri(-7, 7), cz + ri(-7, 7), 1.6 + rnd() * 2.2, 1.4 + rnd() * 2.4, 'stone'); }; // cachette
+    const shed = (cx, cz) => { const w = ri(5, 7); block(cx - w / 2, cz - w / 2, cx + w / 2, cz - w / 2 + 0.5, ri(3, 4), 'wall'); block(cx - w / 2, cz + w / 2 - 0.5, cx + w / 2, cz + w / 2, ri(3, 4), 'wall'); block(cx - w / 2, cz - w / 2, cx - w / 2 + 0.5, cz + w / 2, ri(3, 4), 'wall'); crate(cx + 1, cz, 1.2); };
+    const POIS = [house, house, house, fort, warehouse, camp, rocks, rocks, shed];
+    const clearOf = (x, z, r) => R_ALL.some((s2) => Math.hypot(x - s2[0], z - s2[1]) < r);
+    // grille de POI sur toute la carte
+    const N = 8, span = 1080, step = span / (N - 1), start = -span / 2;
+    for (let gi = 0; gi < N; gi++) for (let gj = 0; gj < N; gj++) {
+      const cx = Math.round(start + gi * step + (rnd() - 0.5) * step * 0.45);
+      const cz = Math.round(start + gj * step + (rnd() - 0.5) * step * 0.45);
+      if (Math.hypot(cx, cz) < 80) continue;        // centre dégagé (donjon)
+      if (clearOf(cx, cz, 34)) continue;            // dégage les apparitions
+      POIS[Math.floor(rnd() * POIS.length)](cx, cz);
     }
-    B(36, 2.6, 42, 40, 5.2, 48, cc[1]); // conteneur en hauteur
-    crate(46, 50, 1.4, 1.4, 'crate2'); barrel(30, 54);
-    // ── Camp (sud-ouest) : caisses et sacs ──
-    crate(-40, 40, 2.2, 2.2); crate(-44, 44, 1.4, 1.4, 'crate2'); crate(-36, 46, 1.2);
-    B(-48, 0, 38, -34, 1.1, 38.8, 'sandbag'); B(-48, 0, 47.2, -34, 1.1, 48, 'sandbag');
-    crate(-46, 42, 1.2, 2.2, 'crate'); barrel(-38, 36); barrel(-39, 36.8); barrel(-50, 50);
-    // ── Couverture éparse dans les champs ──
-    for (const [x, z] of [[0, -40], [0, 40], [-40, 0], [40, 0], [18, -18], [-18, 18], [18, 18], [-18, -18], [60, 0], [-60, 0], [0, 60], [0, -60], [22, -56], [-22, 56]]) {
-      crate(x, z, 1.4, 1.4, (x + z) % 2 ? 'crate' : 'crate2');
-    }
-    for (const [x, z] of [[12, -30], [-12, 30], [30, 12], [-30, -12], [55, -30], [-55, 30], [30, -62], [-30, 62]]) { barrel(x, z); barrel(x + 0.8, z + 0.6); }
-    // murets de couverture au milieu des champs (loin des apparitions)
-    B(44, 0, 8, 56, 1.2, 8.8, 'sandbag'); B(-56, 0, -8.8, -44, 1.2, -8, 'sandbag');
+    // ── Donjon central (point de repère) ──
+    B(-16, 0, -16, 16, 3, 16, 'stone');
+    stairs(-16, 0, '-x', 7, 5, 0.6, 1.2); stairs(16, 0, '+x', 7, 5, 0.6, 1.2);
+    block(-7, -7, 7, 7, 14, 'wall'); B(-9, 3, -9, 9, 3.4, 9, 'stone');
+    crate(-12, -12, 1.4, 1.4, 'crate2', 3); crate(12, 12, 1.4, 1.4, 'crate2', 3);
+    // couverture éparse dans les champs (hors apparitions)
+    for (let i = 0; i < 120; i++) { const x = ri(-560, 560), z = ri(-560, 560); if (Math.hypot(x, z) < 70 || clearOf(x, z, 22)) continue; if (rnd() < 0.6) crate(x, z, 1.2 + rnd() * 1.2, 1.2 + rnd() * 1.2, rnd() < 0.5 ? 'crate' : 'crate2'); else { barrel(x, z); barrel(x + 0.8, z + 0.5); } }
   },
-  spawns: {
-    ffa: [
-      [0, -66], [0, 66], [-66, 0], [66, 0], [-62, -62], [62, -62], [-62, 62], [62, 62],
-      [-34, -66], [34, -66], [-34, 66], [34, 66], [-66, -34], [-66, 34], [66, -34], [66, 34],
-      [20, -20], [-20, 20], [20, 20], [-20, -20], [0, -24], [0, 24], [-24, 0], [24, 0],
-    ],
-    t0: [[-20, -66], [-10, -66], [0, -66], [10, -66], [20, -66], [-30, -64], [30, -64], [-46, -64], [46, -64]],
-    t1: [[-20, 66], [-10, 66], [0, 66], [10, 66], [20, 66], [-30, 64], [30, 64], [-40, 62], [40, 62]],
-  },
+  spawns: { ffa: R_FFA, t0: R_T0, t1: R_T1 },
 });
 
 // ---------------------------------------------------------------------------
