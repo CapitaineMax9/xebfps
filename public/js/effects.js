@@ -43,7 +43,19 @@ export class Effects {
     this.light = new THREE.PointLight(0xffc070, 0, 8, 2);
     scene.add(this.light);
     this.lightT = 0;
+
+    // pools de matériaux (réutilisés pour éviter le churn GC → saccades)
+    this.spriteFree = [];
+    this._circFree = [];
+    this._ringFree = [];
   }
+
+  _acqMat(color, additive) {
+    const m = this.spriteFree.pop();
+    if (m) { m.color.set(color); m.blending = additive ? THREE.AdditiveBlending : THREE.NormalBlending; m.opacity = 1; m.rotation = 0; return m; }
+    return new THREE.SpriteMaterial({ map: this.particleTex, color, transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+  }
+  _relMat(m) { if (m && this.spriteFree.length < 400) this.spriteFree.push(m); else if (m) m.dispose(); }
 
   tracer(from, to, speed = 300, color = null) {
     const d = to.clone().sub(from);
@@ -84,7 +96,7 @@ export class Effects {
   confettiSpray(from, dir, count = 40) {
     const cols = [0xff3fa4, 0xffd23f, 0x22e0ff, 0x7a3cff, 0x3ff0a0, 0xff6a13];
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.SpriteMaterial({ map: this.particleTex, color: cols[i % cols.length], transparent: true, depthWrite: false });
+      const mat = this._acqMat(cols[i % cols.length], false);
       const s = new THREE.Sprite(mat);
       s.position.copy(from);
       const sz = 0.04 + Math.random() * 0.04;
@@ -128,8 +140,9 @@ export class Effects {
   }
 
   burst(pos, normal, color, count = 8, speed = 2.5, size = 0.06, life = 0.5, gravity = 6) {
+    const additive = color === 0xffcc66 || color === 0xff6a20;
     for (let i = 0; i < count; i++) {
-      const mat = new THREE.SpriteMaterial({ map: this.particleTex, color, transparent: true, depthWrite: false, blending: color === 0xffcc66 || color === 0xff6a20 ? THREE.AdditiveBlending : THREE.NormalBlending });
+      const mat = this._acqMat(color, additive);
       const s = new THREE.Sprite(mat);
       s.position.copy(pos);
       const sz = size * (0.6 + Math.random() * 0.8);
@@ -202,8 +215,10 @@ export class Effects {
 
   // Cercle magique runique (style mods Minecraft) : s'étend, tourne et s'estompe
   magicCircle(pos, color = 0x9bd1ff, { r = 1.1, dur = 0.7, up = false, dir = null, spin = 5 } = {}) {
-    const mat = new THREE.MeshBasicMaterial({ map: this._runeTex(), color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-    const m = new THREE.Mesh(this._planeGeo || (this._planeGeo = new THREE.PlaneGeometry(1, 1)), mat);
+    const mat = this._circFree.pop();
+    if (mat) { mat.color.set(color); mat.opacity = 0.95; } // réutilisé du pool
+    const m = new THREE.Mesh(this._planeGeo || (this._planeGeo = new THREE.PlaneGeometry(1, 1)),
+      mat || new THREE.MeshBasicMaterial({ map: this._runeTex(), color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     m.position.copy(pos);
     if (up) m.rotation.x = -Math.PI / 2;
     else if (dir) m.lookAt(pos.clone().add(dir));
@@ -215,9 +230,10 @@ export class Effects {
 
   // Anneau de choc qui s'étend puis s'estompe (AoE, soin, bouclier, impacts)
   ring(pos, color = 0x9bd1ff, maxR = 1, life = 0.4) {
-    const geo = new THREE.RingGeometry(0.4, 0.5, 28);
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-    const m = new THREE.Mesh(geo, mat);
+    const geo = this._ringGeo || (this._ringGeo = new THREE.RingGeometry(0.4, 0.5, 28)); // géométrie partagée
+    const mat = this._ringFree.pop();
+    if (mat) { mat.color.set(color); mat.opacity = 0.85; }
+    const m = new THREE.Mesh(geo, mat || new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     m.position.copy(pos); m.rotation.x = -Math.PI / 2;
     this.group.add(m);
     this.rings = this.rings || [];
@@ -237,7 +253,7 @@ export class Effects {
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.t += dt;
-      if (p.t >= p.life) { this.group.remove(p.s); if (!p.flash) p.s.material.dispose(); this.particles.splice(i, 1); continue; }
+      if (p.t >= p.life) { this.group.remove(p.s); if (!p.flash) this._relMat(p.s.material); this.particles.splice(i, 1); continue; }
       p.v.y -= p.g * dt;
       if (p.g < 0) p.v.multiplyScalar(1 - dt * 1.5); // fumée : ralentit et monte
       p.s.position.addScaledVector(p.v, dt);
@@ -253,7 +269,7 @@ export class Effects {
         const s = 0.15 + k * r.maxR;
         r.m.scale.set(s, s, s);
         r.m.material.opacity = Math.max(0, 0.85 * (1 - k));
-        if (r.t >= r.life) { this.group.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); this.rings.splice(i, 1); }
+        if (r.t >= r.life) { this.group.remove(r.m); if (this._ringFree.length < 64) this._ringFree.push(r.m.material); else r.m.material.dispose(); this.rings.splice(i, 1); }
       }
     }
     if (this.circles) {
@@ -265,7 +281,7 @@ export class Effects {
         c.m.scale.set(s, s, s);
         c.m.material.opacity = Math.max(0, 0.95 * (1 - k * k));
         if (c.up) c.m.rotation.z += c.spin * dt; else c.m.rotateZ(c.spin * dt);
-        if (c.t >= c.dur) { this.group.remove(c.m); c.m.material.dispose(); this.circles.splice(i, 1); }
+        if (c.t >= c.dur) { this.group.remove(c.m); if (this._circFree.length < 64) this._circFree.push(c.m.material); else c.m.material.dispose(); this.circles.splice(i, 1); }
       }
     }
     if (this.beams) {
@@ -282,10 +298,10 @@ export class Effects {
 
   clear() {
     for (const t of this.tracers) this.group.remove(t.m);
-    for (const p of this.particles) this.group.remove(p.s);
+    for (const p of this.particles) { this.group.remove(p.s); if (!p.flash) this._relMat(p.s.material); }
     for (const d of this.decals) this.group.remove(d);
-    if (this.rings) { for (const r of this.rings) { this.group.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); } this.rings = []; }
-    if (this.circles) { for (const c of this.circles) { this.group.remove(c.m); c.m.material.dispose(); } this.circles = []; }
+    if (this.rings) { for (const r of this.rings) { this.group.remove(r.m); if (this._ringFree.length < 64) this._ringFree.push(r.m.material); else r.m.material.dispose(); } this.rings = []; }
+    if (this.circles) { for (const c of this.circles) { this.group.remove(c.m); if (this._circFree.length < 64) this._circFree.push(c.m.material); else c.m.material.dispose(); } this.circles = []; }
     this.tracers = []; this.particles = []; this.decals = [];
   }
 }
