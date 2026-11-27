@@ -221,6 +221,25 @@ export const hud = {
     }
   },
   deathTimer(sec) { $('dp-timer').textContent = sec > 0 ? `Réapparition dans ${sec.toFixed(1)} s` : 'Réapparition…'; },
+  deathText(txt) { const el = $('dp-timer'); if (el) el.textContent = txt; },
+
+  // Battle Royale
+  brInfo(alive, zone) {
+    const el = $('br-info'); if (!el) return;
+    el.classList.remove('hidden');
+    $('br-count').textContent = alive;
+    const z = $('br-zone');
+    z.textContent = !zone ? '' : (zone.state === 'shrink' ? '· zone qui se referme' : (zone.state === 'done' ? '· zone finale' : '· zone stable'));
+  },
+  brHide() {
+    const el = $('br-info'); if (el) el.classList.add('hidden');
+    this.zoneWarn(false);
+  },
+  zoneWarn(out) {
+    const w = $('zone-warn'); if (!w) return;
+    w.classList.toggle('hidden', !out);
+    const h = $('hud'); if (h) h.classList.toggle('out-of-zone', !!out);
+  },
 
   chatLine(html, sys = false) {
     const log = $('chat-log');

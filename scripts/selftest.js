@@ -108,6 +108,7 @@ await accountTests();
 await weaponTests();
 await weaponTests2();
 await grenadeMagicTests();
+await brTests();
 await boardTests();
 await skinGenTests();
 await ACC.store.close();
@@ -330,6 +331,40 @@ async function grenadeMagicTests() {
 }
 
 // ── Catalogue de skins généré ─────────────────────────────────────────────
+async function brTests() {
+  console.log('Battle Royale');
+  fake = 20000;
+  const room = new Room('t_br', { mode: 'br', map: 'oasis', bots: 0, maxPlayers: 8 });
+  const mk = async (name) => { const { acc } = await ACC.authenticate(null, name); return room.addHuman(fakeWs([]), acc); };
+  const [a, b, c] = [await mk('BR1'), await mk('BR2'), await mk('BR3')];
+  for (let i = 0; i < 90; i++) { fake += 33; room.tick(1 / 30); }
+  // zone + loot initialisés
+  if (room.zone && room.zone.r > 5) ok(`zone initialisée (rayon ${room.zone.r.toFixed(1)})`); else fail('zone absente');
+  if (room.loot.length >= 10) ok(`${room.loot.length} armes dispersées au sol`); else fail('loot insuffisant : ' + room.loot.length);
+  // humains démarrent au couteau
+  if (a.weapons.length === 1 && a.weapons[0] === 'knife') ok('les joueurs démarrent au couteau (loot)'); else fail('loadout de départ : ' + a.weapons.join(','));
+  // ramassage : on pose un joueur sur une arme
+  const l0 = room.loot[0];
+  a.body.x = l0.x; a.body.y = l0.y; a.body.z = l0.z; a.alive = true; a.hp = 100; a.protectUntil = 0;
+  const nLoot = room.loot.length;
+  room.updateBR(0.1, fake);
+  if (a.weapons.includes(l0.wid) && room.loot.length === nLoot - 1) ok(`ramassage : ${l0.wid} ajouté et retiré du sol`); else fail('ramassage cassé : ' + a.weapons.join(','));
+  // dégâts hors zone
+  b.body.x = 5000; b.body.z = 0; b.alive = true; b.hp = 100; b.protectUntil = 0;
+  const hp0 = b.hp;
+  for (let i = 0; i < 8; i++) { fake += 500; room.updateBR(0.5, fake); }
+  if (b.hp < hp0) ok(`la zone inflige des dégâts hors zone (${hp0} -> ${b.hp} PV)`); else fail('pas de dégâts de zone : ' + b.hp);
+  // élimination : pas de réapparition
+  a.body.x = 0; a.body.z = 0; a.alive = true; a.hp = 100; a.respawnAt = 0;
+  room.kill(a, c, 'ak47', false, {});
+  if (!a.alive && a.respawnAt === 0 && a.eliminated) ok('élimination définitive (aucune réapparition programmée)'); else fail('élimination : respawnAt ' + a.respawnAt);
+  // victoire : dernier survivant
+  b.alive = true; c.alive = true; a.alive = false;
+  room.state = 'playing';
+  room.kill(b, c, 'ak47', false, {});
+  if (room.state === 'ended') ok('victoire au dernier survivant (fin de manche)'); else fail('la manche ne se termine pas, état ' + room.state);
+}
+
 async function skinGenTests() {
   console.log('Skins générés');
   const { SKINS, CASES, makeItem, rollCase, RARITY_ORDER } = await import('../shared/skins.js');

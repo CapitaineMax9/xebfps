@@ -32,9 +32,15 @@ export const MODES = {
     teams: false, killLimit: 30, timeLimit: 600, respawn: 2, protect: 2, choice: true, hsOnly: true,
     maps: ['oasis', 'docks', 'duel'],
   },
+  br: {
+    id: 'br', name: 'Battle Royale', short: 'BR',
+    desc: 'Solo, dernier survivant. Tu démarres au couteau : ramasse des armes au sol et reste dans la zone qui rétrécit. Aucune réapparition.',
+    teams: false, timeLimit: 600, respawn: 0, protect: 1.2, choice: false,
+    br: true, loot: true, maps: ['oasis', 'docks'],
+  },
 };
 
-export const MODE_ORDER = ['ffa', 'tdm', 'gungame', 'awp', 'hs'];
+export const MODE_ORDER = ['ffa', 'br', 'tdm', 'gungame', 'awp', 'hs'];
 
 export function ggLevelWeapon(level) {
   return GUNGAME_LADDER[Math.min(level, GUNGAME_LADDER.length - 1)];

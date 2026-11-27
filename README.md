@@ -9,6 +9,7 @@ et un système de **skins façon CS2** (caisses, raretés, usure/float, StatKill
 | Mode | Description |
 |---|---|
 | **FFA — Chacun pour soi** (mode principal) | Tout le monde contre tout le monde, premier à 30 kills. Choix des armes avec **B**. |
+| **Battle Royale** 🌩 | Solo, dernier survivant. Tu démarres au **couteau** : ramasse des armes au sol et reste dans la **zone qui rétrécit** (dégâts hors zone). **Aucune réapparition** — mort = éliminé. |
 | **TDM — Match à mort en équipe** | Défense contre Assaut, première équipe à 75 kills. |
 | **Gun Game — Course à l'armement** | 2 kills = arme suivante (MP9 → P90 → Nova → M4A1-S → AK-47 → SSG 08 → AWP → Deagle → Glock → Couteau). Un kill au couteau fait reculer la victime. |
 | **AWP Only** | AWP + couteau uniquement (cartes Duel puis Oasis). Un tir, un kill. |
