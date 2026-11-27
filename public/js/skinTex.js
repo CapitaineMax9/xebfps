@@ -946,7 +946,7 @@ export function skinTexture(skinId, float, seed) {
     const t = new THREE.CanvasTexture(e.canvas);
     t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = 4;
+    t.anisotropy = 8;
     e.tex = t;
   }
   return e.tex;

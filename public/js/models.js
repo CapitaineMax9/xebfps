@@ -112,7 +112,13 @@ function skinMaterials(weaponId, item) {
   if (item && SKINS[item.skin]) {
     const tex = skinTexture(item.skin, item.float, item.seed);
     const fin = skinFinish(item.skin, item.float);
-    const m = new THREE.MeshPhysicalMaterial({ map: tex, metalness: fin.metalness, roughness: fin.roughness, clearcoat: 0.55 * (1 - item.float), clearcoatRoughness: 0.22 + item.float * 0.5 });
+    // finition plus réaliste : texture nette (anisotropie), vernis et reflets d'environnement
+    const m = new THREE.MeshPhysicalMaterial({
+      map: tex,
+      metalness: fin.metalness, roughness: fin.roughness,
+      clearcoat: 0.5 * (1 - item.float * 0.6), clearcoatRoughness: 0.2 + item.float * 0.5,
+      envMapIntensity: 1.35,
+    });
     mats = { skin: m, skin2: m };
   } else {
     const d = DEFAULTS[weaponId] || DEFAULTS.ak47;
