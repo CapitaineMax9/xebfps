@@ -227,5 +227,127 @@ const duel = build({
   },
 });
 
-export const MAPS = { oasis, docks, duel };
-export const MAP_LIST = ['oasis', 'docks', 'duel'];
+// ---------------------------------------------------------------------------
+// ROYAUME — grande carte verte ouverte avec plusieurs zones (pensée Battle Royale)
+// ---------------------------------------------------------------------------
+const royaume = build({
+  id: 'royaume', name: 'Royaume', size: [150, 150], wallHeight: 11, outerMat: 'wall2',
+  theme: { sky: ['#8fc0ea', '#cfe8b0'], fog: '#cfe4c2', fogNear: 80, fogFar: 230, sun: '#fff6e0', floor: 'grass', ambient: 0.82 },
+  build: ({ block, crate, stairs, B, barrel }) => {
+    // ── Donjon central (point haut) ──
+    B(-9, 0, -9, 9, 2, 9, 'stone');
+    stairs(-9, 0, '-x', 5, 4, 0.5, 1.1);
+    stairs(9, 0, '+x', 5, 4, 0.5, 1.1);
+    block(-4, -4, 4, 4, 9, 'wall');       // tour
+    B(-5, 2, -5, 5, 2.4, 5, 'stone');
+    crate(-6.5, -6.5, 1.2, 1.2, 'crate2', 2); crate(6.5, 6.5, 1.2, 1.2, 'crate2', 2);
+    // ── Village (nord-est) : maisons avec rues ──
+    for (const [hx, hz, w, d, h] of [[34, -46, 9, 8, 6], [46, -40, 8, 9, 7], [30, -34, 7, 7, 5], [48, -54, 9, 7, 6], [38, -58, 7, 8, 5]]) {
+      block(hx - w / 2, hz - d / 2, hx + w / 2, hz + d / 2, h, 'wall');
+    }
+    crate(40, -46, 1.4); crate(36, -40, 1.2, 1.2, 'crate2'); barrel(44, -48); barrel(45, -47.2);
+    // ── Fort (nord-ouest) : enceinte carrée avec tours d'angle et entrée ──
+    for (const [ax, az] of [[-52, -52], [-28, -52], [-52, -28], [-28, -28]]) block(ax - 2, az - 2, ax + 2, az + 2, 8, 'stone');
+    B(-52, 0, -52, -34, 3, -50, 'stone'); B(-30, 0, -52, -28, 3, -50 + 0, 'stone'); // mur nord (entrée au milieu)
+    B(-52, 0, -30, -50, 3, -28, 'stone'); B(-52, 0, -52, -50, 3, -42, 'stone');
+    B(-30, 0, -52, -28, 3, -42, 'stone'); B(-30, 0, -34, -28, 3, -28, 'stone');
+    B(-52, 0, -30, -42, 3, -28, 'stone'); B(-38, 0, -30, -28, 3, -28, 'stone');
+    crate(-40, -40, 2, 2); crate(-44, -36, 1.2); stairs(-40, -46, '+z', 4, 3, 0.6, 1.0, 'stone');
+    // ── Entrepôt (sud-est) : conteneurs empilés ──
+    const cc = ['container_r', 'container_b', 'container_g', 'container_y'];
+    let ci = 0;
+    for (const [cx, cz, rot] of [[34, 40, 0], [34, 46, 0], [42, 43, 1], [48, 40, 0], [40, 52, 1], [30, 48, 0]]) {
+      const m = cc[ci++ % 4];
+      if (rot) B(cx - 3, 0, cz - 1.2, cx + 3, 2.6, cz + 1.2, m); else B(cx - 1.2, 0, cz - 3, cx + 1.2, 2.6, cz + 3, m);
+    }
+    B(36, 2.6, 42, 40, 5.2, 48, cc[1]); // conteneur en hauteur
+    crate(46, 50, 1.4, 1.4, 'crate2'); barrel(30, 54);
+    // ── Camp (sud-ouest) : caisses et sacs ──
+    crate(-40, 40, 2.2, 2.2); crate(-44, 44, 1.4, 1.4, 'crate2'); crate(-36, 46, 1.2);
+    B(-48, 0, 38, -34, 1.1, 38.8, 'sandbag'); B(-48, 0, 47.2, -34, 1.1, 48, 'sandbag');
+    crate(-46, 42, 1.2, 2.2, 'crate'); barrel(-38, 36); barrel(-39, 36.8); barrel(-50, 50);
+    // ── Couverture éparse dans les champs ──
+    for (const [x, z] of [[0, -40], [0, 40], [-40, 0], [40, 0], [18, -18], [-18, 18], [18, 18], [-18, -18], [60, 0], [-60, 0], [0, 60], [0, -60], [22, -56], [-22, 56]]) {
+      crate(x, z, 1.4, 1.4, (x + z) % 2 ? 'crate' : 'crate2');
+    }
+    for (const [x, z] of [[12, -30], [-12, 30], [30, 12], [-30, -12], [55, -30], [-55, 30], [30, -62], [-30, 62]]) { barrel(x, z); barrel(x + 0.8, z + 0.6); }
+    // murets de couverture au milieu des champs (loin des apparitions)
+    B(44, 0, 8, 56, 1.2, 8.8, 'sandbag'); B(-56, 0, -8.8, -44, 1.2, -8, 'sandbag');
+  },
+  spawns: {
+    ffa: [
+      [0, -66], [0, 66], [-66, 0], [66, 0], [-62, -62], [62, -62], [-62, 62], [62, 62],
+      [-34, -66], [34, -66], [-34, 66], [34, 66], [-66, -34], [-66, 34], [66, -34], [66, 34],
+      [20, -20], [-20, 20], [20, 20], [-20, -20], [0, -24], [0, 24], [-24, 0], [24, 0],
+    ],
+    t0: [[-20, -66], [-10, -66], [0, -66], [10, -66], [20, -66], [-30, -64], [30, -64], [-46, -64], [46, -64]],
+    t1: [[-20, 66], [-10, 66], [0, 66], [10, 66], [20, 66], [-30, 64], [30, 64], [-40, 62], [40, 62]],
+  },
+});
+
+// ---------------------------------------------------------------------------
+// ENTREPÔT — hangar industriel, allées de conteneurs, combats rapprochés
+// ---------------------------------------------------------------------------
+const entrepot = build({
+  id: 'entrepot', name: 'Entrepôt', size: [72, 60], wallHeight: 8, outerMat: 'metal',
+  theme: { sky: ['#52606e', '#b7bcc2'], fog: '#9aa2ab', fogNear: 40, fogFar: 120, sun: '#ffeccb', floor: 'concrete', ambient: 0.72 },
+  build: ({ block, crate, stairs, B, barrel }) => {
+    const cc = ['container_r', 'container_b', 'container_g', 'container_y'];
+    // allées de conteneurs (symétrie centrale)
+    for (const s of [-1, 1]) {
+      B(-30 * 1, 0, -20 * s, -18, 2.6, -14 * s, cc[0]);
+      B(-6, 0, -22 * s, 6, 2.6, -16 * s, cc[1]);
+      B(18, 0, -20 * s, 30, 2.6, -14 * s, cc[2]);
+      B(-30, 2.6, -20 * s, -18, 5.2, -14 * s, cc[3]);
+      crate(-12 * s, -6 * s, 1.6, 1.6, 'crate2');
+      crate(12 * s, -9 * s, 1.4);
+      barrel(-24 * s, -2 * s); barrel(-23.2 * s, -2.6 * s);
+    }
+    // plateforme / mezzanine centrale avec escaliers
+    B(-7, 0, -3.5, 7, 2.2, 3.5, 'stone');
+    stairs(-7, 0, '-x', 4, 4, 0.55, 0.9); stairs(7, 0, '+x', 4, 4, 0.55, 0.9);
+    crate(0, 0, 1.4, 1.4, 'crate2', 2.2);
+    // caisses éparses
+    crate(-26, 8, 1.4); crate(26, -8, 1.4); crate(-20, -10, 1.2, 1.2, 'crate2'); crate(20, 10, 1.2, 1.2, 'crate2');
+    B(-32, 0, 6, -24, 1.1, 6.8, 'sandbag'); B(24, 0, -6.8, 32, 1.1, -6, 'sandbag');
+  },
+  spawns: {
+    ffa: [[-32, -24], [32, -24], [-32, 24], [32, 24], [0, -26], [0, 26], [-32, 0], [32, 0], [-14, -10], [14, 10], [14, -10], [-14, 10], [0, -12], [0, 12]],
+    t0: [[-32, -24], [-24, -25], [-16, -24], [-8, -25], [0, -26], [8, -25], [16, -24]],
+    t1: [[-32, 24], [-24, 25], [-16, 24], [-8, 25], [0, 26], [8, 25], [16, 24]],
+  },
+});
+
+// ---------------------------------------------------------------------------
+// TEMPLE — ruines de pierre, longues lignes de vue et plateformes (AWP / TDM)
+// ---------------------------------------------------------------------------
+const temple = build({
+  id: 'temple', name: 'Temple', size: [96, 64], wallHeight: 9,
+  theme: { sky: ['#e9b06a', '#ffe0b0'], fog: '#e7c79a', fogNear: 55, fogFar: 160, sun: '#ffe0a8', floor: 'sand', ambient: 0.8 },
+  build: ({ block, crate, stairs, B, barrel }) => {
+    // grand escalier central et podium (ligne de vue centrale)
+    B(-8, 0, -4, 8, 2.4, 4, 'stone');
+    stairs(-8, 0, '-x', 6, 4, 0.6, 1.1); stairs(8, 0, '+x', 6, 4, 0.6, 1.1);
+    block(-3, -3, 3, 3, 7, 'stone'); // autel
+    // rangées de colonnes (couloirs longs symétriques)
+    for (const s of [-1, 1]) {
+      for (const cx of [-34, -22, 22, 34]) crate(cx, 16 * s, 1.4, 7, 'stone');
+      block(-42, 9 * s, -30, 20 * s, 6, 'wall');
+      block(30, 9 * s, 42, 20 * s, 6, 'wall');
+      crate(-16, 10 * s, 1.6, 1.6, 'crate2');
+      crate(16, 13 * s, 1.4);
+      B(-10, 0, 24 * s, 10, 1.2, 24.8 * s, 'sandbag');
+      barrel(-40, 4 * s); barrel(40, -4 * s);
+    }
+    crate(0, 18, 1.4); crate(0, -18, 1.4);
+    crate(-46, 10, 1.2, 4, 'stone'); crate(46, -10, 1.2, 4, 'stone');
+  },
+  spawns: {
+    ffa: [[-44, -26], [44, -26], [-44, 26], [44, 26], [0, -28], [0, 28], [-44, 0], [44, 0], [-20, -20], [20, 20], [20, -20], [-20, 20], [-30, 0], [30, 0]],
+    t0: [[-44, -26], [-36, -27], [-28, -26], [-20, -27], [-44, 0], [44, -26], [36, -27]],
+    t1: [[-44, 26], [-36, 27], [-28, 26], [-20, 27], [-44, 8], [44, 26], [36, 27]],
+  },
+});
+
+export const MAPS = { oasis, docks, duel, royaume, entrepot, temple };
+export const MAP_LIST = ['oasis', 'docks', 'duel', 'royaume', 'entrepot', 'temple'];
