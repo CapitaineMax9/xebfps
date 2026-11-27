@@ -345,6 +345,21 @@ export const PRIMARIES = ['ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg5
 export const MAGIC = ['fireball', 'chainbolt', 'frostbeam', 'arcaneorb', 'healstaff', 'aegis', 'blink', 'totem'];
 export const GRENADES = ['he', 'flash', 'smoke', 'molotov'];
 export const GRENADE_STOCK = { he: 1, flash: 2, smoke: 2, molotov: 1 };
+
+// Raretés du loot Battle Royale (façon Fortnite) : la rareté multiplie les dégâts.
+export const BR_RARITIES = [
+  { id: 'common', name: 'Commune', color: '#b6c0c8', w: 42, dmg: 1.0 },
+  { id: 'uncommon', name: 'Peu commune', color: '#46d24f', w: 28, dmg: 1.1 },
+  { id: 'rare', name: 'Rare', color: '#3f8dff', w: 16, dmg: 1.22 },
+  { id: 'epic', name: 'Épique', color: '#b24dff', w: 9, dmg: 1.38 },
+  { id: 'legendary', name: 'Légendaire', color: '#ffb02e', w: 5, dmg: 1.6 },
+];
+export function pickBrRarity(rnd = Math.random) {
+  const tot = BR_RARITIES.reduce((a, r) => a + r.w, 0);
+  let x = rnd() * tot;
+  for (let i = 0; i < BR_RARITIES.length; i++) { x -= BR_RARITIES[i].w; if (x <= 0) return i; }
+  return 0;
+}
 export const SECONDARIES = ['usp', 'glock', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus'];
 export const MELEES = ['knife', 'pan', 'saber'];
 export const SKINNABLE = ['knife', 'pan', 'saber', 'glock', 'usp', 'p2000', 'deagle', 'fiveseven', 'p250', 'tec9', 'cz75', 'r8', 'dualies', 'zeus', 'mp9', 'mac10', 'mp7', 'mp5sd', 'ump45', 'bizon', 'p90', 'nova', 'xm1014', 'mag7', 'sawedoff', 'confetti', 'ak47', 'm4a1s', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'm249', 'negev', 'minigun', 'ssg08', 'scar20', 'g3sg1', 'awp', 'railgun', 'rpg', 'gl', 'crossbow'];

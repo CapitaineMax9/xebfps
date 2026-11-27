@@ -333,6 +333,7 @@ async function grenadeMagicTests() {
 // ── Catalogue de skins généré ─────────────────────────────────────────────
 async function brTests() {
   console.log('Battle Royale');
+  const W = await import('../shared/weapons.js');
   fake = 20000;
   const room = new Room('t_br', { mode: 'br', map: 'oasis', bots: 0, maxPlayers: 8 });
   const mk = async (name) => { const { acc } = await ACC.authenticate(null, name); return room.addHuman(fakeWs([]), acc); };
@@ -341,14 +342,22 @@ async function brTests() {
   // zone + loot initialisés
   if (room.zone && room.zone.r > 5) ok(`zone initialisée (rayon ${room.zone.r.toFixed(1)})`); else fail('zone absente');
   if (room.loot.length >= 10) ok(`${room.loot.length} armes dispersées au sol`); else fail('loot insuffisant : ' + room.loot.length);
-  // humains démarrent au couteau
-  if (a.weapons.length === 1 && a.weapons[0] === 'knife') ok('les joueurs démarrent au couteau (loot)'); else fail('loadout de départ : ' + a.weapons.join(','));
+  // humains démarrent au corps à corps uniquement (loot) — weaponsFor est déterministe
+  const startW = room.weaponsFor(a);
+  if (startW.length === 1 && W.MELEES.includes(startW[0])) ok(`les joueurs démarrent au corps à corps (${startW[0]}) et lootent le reste`); else fail('loadout de départ : ' + startW.join(','));
   // ramassage : on pose un joueur sur une arme
   const l0 = room.loot[0];
   a.body.x = l0.x; a.body.y = l0.y; a.body.z = l0.z; a.alive = true; a.hp = 100; a.protectUntil = 0;
   const nLoot = room.loot.length;
   room.updateBR(0.1, fake);
   if (a.weapons.includes(l0.wid) && room.loot.length === nLoot - 1) ok(`ramassage : ${l0.wid} ajouté et retiré du sol`); else fail('ramassage cassé : ' + a.weapons.join(','));
+  // rareté : une arme légendaire multiplie les dégâts
+  a.wmul = {}; a.wrar = {}; room.giveLoot(a, 'ak47', 4); // index 4 = légendaire
+  const legMul = W.BR_RARITIES[4].dmg;
+  if (a.wmul.ak47 === legMul) ok(`rareté : ak47 légendaire → dégâts ×${legMul}`); else fail('rareté non appliquée : ' + a.wmul.ak47);
+  b.body.x = 0; b.body.z = 12; b.alive = true; b.hp = 100; b.protectUntil = 0; b.shield = 0;
+  room.damage(b, a, 50, 'ak47', false, {}); // 50 × 1.6 = 80
+  if (b.hp === 100 - Math.round(50 * legMul)) ok(`rareté : dégâts multipliés dans le calcul (${b.hp} PV restants)`); else fail('multiplicateur de dégâts : ' + b.hp);
   // dégâts hors zone
   b.body.x = 5000; b.body.z = 0; b.alive = true; b.hp = 100; b.protectUntil = 0;
   const hp0 = b.hp;

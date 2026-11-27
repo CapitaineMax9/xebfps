@@ -11,6 +11,10 @@ const SKY = {
   oasis: { skyTop: '#3f7fd0', elev: 42, az: 120, turbidity: 4, rayleigh: 1.0, mie: 0.004, sun: '#fff0d8', sunI: 3.4, skyLight: '#9cc4ff', ground: '#b89a6a', hemi: 0.42, fog: '#d8d0bc', fogD: 0.0055, clouds: '#ffffff', cloudN: 22 },
   docks: { skyTop: '#5a7fa8', elev: 26, az: 215, turbidity: 9, rayleigh: 2.0, mie: 0.008, sun: '#ffd9b0', sunI: 3.0, skyLight: '#9ab0cc', ground: '#8a8478', hemi: 0.5, fog: '#a8b0b8', fogD: 0.0105, clouds: '#e8e4e0', cloudN: 34 },
   duel: { skyTop: '#4a6aa8', elev: 9, az: 255, turbidity: 8, rayleigh: 3.0, mie: 0.01, sun: '#ffb070', sunI: 3.4, skyLight: '#a8a8c0', ground: '#b08a68', hemi: 0.45, fog: '#e0a888', fogD: 0.0075, clouds: '#ffc8a0', cloudN: 26 },
+  // grande map BR : brouillard très léger pour garder de la portée de vue
+  royaume: { skyTop: '#5b8fd6', elev: 38, az: 135, turbidity: 3, rayleigh: 1.1, mie: 0.004, sun: '#fff2d8', sunI: 3.3, skyLight: '#bcd8ff', ground: '#6f9150', hemi: 0.5, fog: '#cfe2d2', fogD: 0.0026, clouds: '#ffffff', cloudN: 34 },
+  entrepot: { skyTop: '#5a7fa8', elev: 24, az: 210, turbidity: 8, rayleigh: 2.0, mie: 0.008, sun: '#ffd9b0', sunI: 3.0, skyLight: '#9ab0cc', ground: '#8a8478', hemi: 0.5, fog: '#aeb4ba', fogD: 0.0072, clouds: '#e8e4e0', cloudN: 30 },
+  temple: { skyTop: '#4f74b0', elev: 16, az: 250, turbidity: 6, rayleigh: 2.4, mie: 0.009, sun: '#ffc088', sunI: 3.3, skyLight: '#b0b4cc', ground: '#b0906a', hemi: 0.46, fog: '#d8c0a0', fogD: 0.0058, clouds: '#ffd8b8', cloudN: 24 },
 };
 
 // Nuages : sprites doux générés une fois
@@ -278,10 +282,12 @@ export function buildWorld(scene, map, settings) {
   const sk = SKY[map.id] || SKY.oasis;
   const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - sk.elev), THREE.MathUtils.degToRad(sk.az));
   const cheapSky = GFX_PRESETS[settings.gfx] && GFX_PRESETS[settings.gfx].decor !== 'high';
+  // le dôme de ciel doit englober toute la carte : sinon on voit le vide (noir) au-delà sur les grandes maps
+  const skyR = Math.max(500, Math.hypot(map.size[0], map.size[1]) * 1.15);
   let sky;
   if (cheapSky) {
     // ciel en dégradé (bien moins coûteux que la diffusion atmosphérique)
-    sky = new THREE.Mesh(new THREE.SphereGeometry(450, 24, 12), new THREE.ShaderMaterial({
+    sky = new THREE.Mesh(new THREE.SphereGeometry(skyR, 24, 12), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
       uniforms: { top: { value: new THREE.Color(sk.skyTop || '#4f86c6') }, bottom: { value: new THREE.Color(sk.fog) }, sunCol: { value: new THREE.Color(sk.sun) }, sunDir: { value: sunDir } },
       vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -289,7 +295,7 @@ export function buildWorld(scene, map, settings) {
     }));
   } else {
     sky = new Sky();
-    sky.scale.setScalar(1000);
+    sky.scale.setScalar(Math.max(1000, skyR * 1.6));
     const u = sky.material.uniforms;
     u.turbidity.value = sk.turbidity; u.rayleigh.value = sk.rayleigh;
     u.mieCoefficient.value = sk.mie; u.mieDirectionalG.value = 0.85;

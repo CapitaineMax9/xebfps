@@ -20,9 +20,11 @@ export const hud = {
     $('hp-box').classList.toggle('low', hp <= 25);
   },
 
-  setAmmo(wid, mag, res, weapons, cur) {
+  setAmmo(wid, mag, res, weapons, cur, nameColor) {
     const w = WEAPONS[wid];
-    $('weap-name').textContent = w ? w.name : '';
+    const nm = $('weap-name');
+    nm.textContent = w ? w.name : '';
+    nm.style.color = nameColor || '';
     const m = $('ammo-mag');
     if (!w || w.kind === 'knife' || w.kind === 'magic') { m.textContent = w && w.kind === 'magic' ? '✦' : '∞'; $('ammo-res').textContent = ''; m.classList.remove('low'); }
     else {
