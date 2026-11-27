@@ -18,7 +18,10 @@ et un système de **skins façon CS2** (caisses, raretés, usure/float, StatKill
 Des **bots** (3 niveaux de difficulté) complètent automatiquement les parties quand il n'y a pas assez de joueurs,
 et laissent leur place dès qu'un humain arrive.
 
-**Cartes :** Oasis (village du désert, longs couloirs pour l'AWP), Docks (conteneurs, combats rapprochés), Duel (carte longue type « awp_ »).
+**Cartes :** Oasis (village du désert, longs couloirs pour l'AWP), Docks (conteneurs, combats rapprochés),
+Duel (carte longue type « awp_ »), **Royaume** (grande carte verte ouverte avec village, fort et entrepôt — dédiée
+au Battle Royale), **Entrepôt** (hangar industriel, allées de conteneurs), **Temple** (ruines de pierre, longues
+lignes de vue). Le choix de carte à la création s'adapte au mode.
 
 **44 armes à feu + 8 sorts de magie + 4 grenades :**
 - Fusils : AK-47, M4A1-S, M4A4, FAMAS (rafales de 3), Galil AR, AUG (lunette), SG 553 (lunette)

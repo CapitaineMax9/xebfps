@@ -144,6 +144,12 @@ function textures() {
     ctx.strokeStyle = 'rgba(40,40,40,0.18)'; ctx.lineWidth = 1.5; ctx.strokeRect(0, 0, s, s);
     for (let i = 0; i < 6; i++) { ctx.fillStyle = 'rgba(60,55,50,0.08)'; ctx.beginPath(); ctx.arc(r() * s, r() * s, 20 + r() * 40, 0, 7); ctx.fill(); }
   }, 4);
+  TEX.grass = canvasTex(512, (ctx, s, r) => {
+    ctx.fillStyle = '#4e7d3a'; ctx.fillRect(0, 0, s, s);
+    speckle(ctx, s, r, 5200, ['#3f6e32', '#568a42', '#3a5f2c', '#6b9a4e', '#2f5226'], 3);
+    for (let i = 0; i < 24; i++) { ctx.fillStyle = r() < 0.5 ? 'rgba(90,135,65,0.12)' : 'rgba(32,58,26,0.16)'; ctx.beginPath(); ctx.arc(r() * s, r() * s, 22 + r() * 55, 0, 7); ctx.fill(); }
+    for (let i = 0; i < 520; i++) { ctx.strokeStyle = r() < 0.5 ? 'rgba(96,146,72,0.5)' : 'rgba(46,82,38,0.5)'; ctx.lineWidth = 1.4; const x = r() * s, y = r() * s; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (r() - 0.5) * 7, y - 4 - r() * 7); ctx.stroke(); }
+  }, 5);
   TEX.wall = canvasTex(512, (ctx, s, r) => {
     ctx.fillStyle = '#d9c29a'; ctx.fillRect(0, 0, s, s);
     speckle(ctx, s, r, 3000, ['#cbb185', '#e6d3ad', '#c2a676'], 3);
@@ -207,8 +213,8 @@ function textures() {
   TEX.container_b = container('#2a5a8a');
   TEX.container_g = container('#3a7a4a');
   TEX.container_y = container('#c89a2a');
-  for (const k of ['wall', 'wall2', 'stone', 'crate', 'crate2', 'sandbag', 'metal', 'concrete', 'sand', 'container_r', 'container_b', 'container_g', 'container_y']) {
-    TEX['n_' + k] = normalFrom(TEX[k], k === 'sand' ? 1.2 : 3);
+  for (const k of ['wall', 'wall2', 'stone', 'crate', 'crate2', 'sandbag', 'metal', 'concrete', 'sand', 'grass', 'container_r', 'container_b', 'container_g', 'container_y']) {
+    TEX['n_' + k] = normalFrom(TEX[k], k === 'sand' || k === 'grass' ? 1.2 : 3);
   }
   TEX.ready = true;
   return TEX;
@@ -236,7 +242,7 @@ export function buildWorld(scene, map, settings) {
   for (const b of map.boxes) {
     if (b.m === 'barrel') continue; // dessinés dans les décors
     let key = b.m;
-    if (key === 'floor') key = map.theme.floor === 'concrete' ? 'concrete' : 'sand';
+    if (key === 'floor') key = map.theme.floor === 'concrete' ? 'concrete' : (map.theme.floor === 'grass' ? 'grass' : 'sand');
     if (!byMat.has(key)) byMat.set(key, []);
     byMat.get(key).push(b);
   }
@@ -255,12 +261,12 @@ export function buildWorld(scene, map, settings) {
     const geo = mergeGeometries(geos, false);
     geos.forEach((g) => g.dispose());
     const metalLike = key === 'metal' || key.startsWith('container');
-    const floorLike = key === 'sand' || key === 'concrete';
+    const floorLike = key === 'sand' || key === 'concrete' || key === 'grass';
     const mat = new THREE.MeshStandardMaterial({ map: tex, normalMap: T['n_' + key] || null, roughness: metalLike ? 0.55 : 0.92, metalness: metalLike ? 0.35 : 0 });
     if (mat.normalMap) mat.normalScale.set(0.8, 0.8);
     addMacro(mat, !floorLike);
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = key !== 'sand' && key !== 'concrete';
+    mesh.castShadow = !floorLike;
     mesh.receiveShadow = true;
     mesh.name = key;
     group.add(mesh);
