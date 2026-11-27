@@ -854,6 +854,10 @@ function clearWorldFx() {
 // ── Battle Royale (client) ───────────────────────────────────────────────────
 let zoneMesh = null, zoneRing = null;
 const lootMeshes = new Map();
+let lootQueue = []; // création étalée sur plusieurs frames (évite le pic au début de manche)
+function disposeLootGroup(g) {
+  g.traverse((o) => { if (o.isMesh) { if (o.geometry) o.geometry.dispose(); if (o.material) { if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose()); else o.material.dispose(); } } });
+}
 function setupBR(zone, loot) {
   clearBR();
   S.zone = zone || null;
@@ -870,7 +874,7 @@ function setupBR(zone, loot) {
   zoneRing.rotation.x = -Math.PI / 2; zoneRing.position.y = 0.12; zoneRing.userData.noAO = true;
   S.scene.add(zoneRing);
   applyZone();
-  if (loot) for (const l of loot) spawnLoot(l);
+  lootQueue = loot ? loot.slice() : []; // créés progressivement dans updateBRClient
 }
 function applyZone() {
   if (!zoneMesh || !S.zone) return;
@@ -893,22 +897,26 @@ function spawnLoot(l) {
   lootMeshes.set(l.id, g);
 }
 function removeLoot(id, pickedByMe) {
+  if (lootQueue.length) { const qi = lootQueue.findIndex((l) => l.id === id); if (qi >= 0) lootQueue.splice(qi, 1); }
   const g = lootMeshes.get(id);
   if (!g) return;
   if (pickedByMe) S.effects.ring(g.position.clone().setY(g.position.y + 0.3), 0x7af2ff, 1.1, 0.4);
-  S.scene.remove(g); lootMeshes.delete(id);
+  S.scene.remove(g); disposeLootGroup(g); lootMeshes.delete(id);
 }
 function clearBR() {
   if (zoneMesh) { S.scene.remove(zoneMesh); zoneMesh.geometry.dispose(); zoneMesh.material.dispose(); zoneMesh = null; }
   if (zoneRing) { S.scene.remove(zoneRing); zoneRing.geometry.dispose(); zoneRing.material.dispose(); zoneRing = null; }
-  for (const g of lootMeshes.values()) S.scene.remove(g);
+  for (const g of lootMeshes.values()) { S.scene.remove(g); disposeLootGroup(g); }
   lootMeshes.clear();
+  lootQueue = [];
   S.zone = null;
   hud.brHide();
 }
 function brAliveCount() { return S.board ? S.board.filter((r) => r[7]).length : 0; }
 function updateBRClient(dt) {
   if (!S.cfg || !S.cfg.br) return;
+  // création étalée du loot : quelques modèles par frame plutôt qu'un gros pic
+  for (let i = 0; i < 4 && lootQueue.length; i++) spawnLoot(lootQueue.shift());
   const t = performance.now() / 1000;
   for (const g of lootMeshes.values()) {
     if (g.userData.spin) { g.userData.spin.rotation.y += dt * 1.8; g.userData.spin.position.y = 0.6 + Math.sin(t * 2 + g.position.x) * 0.08; }
