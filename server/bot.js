@@ -7,9 +7,9 @@ import { PLAYER } from '../shared/constants.js';
 export const BOT_NAMES = ['Lucas', 'Hugo', 'Léa', 'Inès', 'Nathan', 'Jade', 'Enzo', 'Chloé', 'Sacha', 'Malo', 'Zoé', 'Noah', 'Lina', 'Tom', 'Rayan', 'Manon'];
 
 const DIFF = {
-  easy:   { react: 0.6,  noise: 0.06,  turn: 4.5, fovCos: Math.cos(1.0), head: 0.12, tol: 0.06, counter: 0.3, burst: [2, 4] },
-  normal: { react: 0.38, noise: 0.032, turn: 7.5, fovCos: Math.cos(1.1), head: 0.28, tol: 0.04, counter: 0.6, burst: [3, 6] },
-  hard:   { react: 0.24, noise: 0.016, turn: 11,  fovCos: Math.cos(1.25), head: 0.45, tol: 0.03, counter: 0.9, burst: [4, 8] },
+  easy:   { react: 0.85, noise: 0.10,  turn: 3.6, fovCos: Math.cos(0.95), head: 0.04, tol: 0.06,  counter: 0.2,  burst: [2, 3] },
+  normal: { react: 0.55, noise: 0.055, turn: 6.0, fovCos: Math.cos(1.05), head: 0.13, tol: 0.045, counter: 0.45, burst: [3, 5] },
+  hard:   { react: 0.34, noise: 0.03,  turn: 8.5, fovCos: Math.cos(1.2),  head: 0.3,  tol: 0.035, counter: 0.72, burst: [4, 6] },
 };
 
 const wrap = (a) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };

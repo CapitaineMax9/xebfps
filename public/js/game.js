@@ -1567,19 +1567,23 @@ function setupInput() {
   document.addEventListener('pointerlockchange', () => {
     S.locked = document.pointerLockElement === c;
     if (!S.active) return;
-    if (S.locked) { if (S.ui === 'pause') setUi(null); }
+    if (S.locked) { S._skipMove = true; if (S.ui === 'pause') setUi(null); } // ignore le pic de mouvement au reverrouillage
     else if (S.ui === null || S.ui === 'chat') setUi(S.state === 'ended' ? null : 'pause');
   });
   document.addEventListener('mousemove', (e) => {
     if (!S.active || !S.locked || S.ui) return;
+    // le navigateur envoie parfois un énorme delta d'un coup (reverrouillage, événement groupé) → la caméra « saute »
+    if (S._skipMove) { S._skipMove = false; return; }
+    const mx = Math.max(-250, Math.min(250, e.movementX)); // plafonne les deltas aberrants
+    const my = Math.max(-250, Math.min(250, e.movementY));
     const me = S.me, st = settings();
     let k = st.sens * 0.022 * DEG;
     const w = WEAPONS[me.cur];
     if (me.scoped && w.scope) k *= (Math.tan(w.scope[me.scoped - 1] * DEG / 2) / Math.tan(st.fov * DEG / 2)) * st.scopeSens;
-    me.yaw -= e.movementX * k;
-    me.pitch -= e.movementY * k;
+    me.yaw -= mx * k;
+    me.pitch -= my * k;
     me.pitch = Math.max(-89 * DEG, Math.min(89 * DEG, me.pitch));
-    if (S.vm) { S.vm.swayX = Math.max(-0.02, Math.min(0.02, S.vm.swayX + e.movementX * 0.00004)); S.vm.swayY = Math.max(-0.02, Math.min(0.02, S.vm.swayY - e.movementY * 0.00004)); }
+    if (S.vm) { S.vm.swayX = Math.max(-0.02, Math.min(0.02, S.vm.swayX + mx * 0.00004)); S.vm.swayY = Math.max(-0.02, Math.min(0.02, S.vm.swayY - my * 0.00004)); }
   });
   document.addEventListener('mousedown', (e) => {
     if (!S.active || !S.locked || S.ui) return;
